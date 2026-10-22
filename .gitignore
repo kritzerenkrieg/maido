@@ -1,0 +1,9 @@
+node_modules/
+target/
+dist/
+/.claude/
+/test/
+/src-tauri/gen/
+.env
+env
+.venv
