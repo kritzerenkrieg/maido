@@ -86,6 +86,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           releaseId: ${{ needs.create-release.outputs.release_id }}
+          # Keep it a draft: tauri-action publishes by default, which would put the release live
+          # when the first platform finishes. The publish job does that once all have.
+          releaseDraft: true
           args: ${{ matrix.args }}
 
   publish:
