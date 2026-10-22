@@ -1,0 +1,67 @@
+flowchart LR
+  subgraph WV["Webview: Svelte 5 + TypeScript (ui/src)"]
+    direction TB
+    App["App.svelte<br/>top bar, menus, sidebar, tabs, settings"]
+    Tree["Tree / Search / Palette / FindBar<br/>Explorer, full-text search, quick open"]
+    Doc["Document.svelte<br/>keyed blocks, lazy highlight and diagrams"]
+    MmdPage["MermaidPage.svelte<br/>.mmd files: zoom and pan"]
+    Ed["Editor.svelte<br/>CodeMirror 6, loaded on first edit"]
+    DiffV["DiffView.svelte<br/>line, word and rendered diffs"]
+    TermUI["Terminals.svelte<br/>xterm.js sessions"]
+    Libs["lib/<br/>api, html, math (KaTeX), export, pdf, theme, buffers"]
+    App --> Tree
+    App --> Doc
+    App --> MmdPage
+    App --> Ed
+    App --> DiffV
+    App --> TermUI
+    Doc --> Libs
+    App --> Libs
+  end
+
+  subgraph HELP["Hidden helper webview (own web process)"]
+    MF["mermaid-frame.ts<br/>Mermaid, strict mode, closes 3 s after last diagram"]
+  end
+
+  subgraph RS["Rust backend: Tauri 2 (src-tauri/src)"]
+    direction TB
+    Lib["lib.rs<br/>commands, one window per workspace, single instance, maido path"]
+    DocRs["doc.rs<br/>comrak: Markdown to blocks, sanitize, incremental re-parse"]
+    HL["highlight.rs<br/>syntect, cached by block hash"]
+    MmRs["mermaid.rs<br/>SVG disk cache, helper job queue"]
+    WS["workspace.rs<br/>tree listing, link resolving, file watcher, sessions"]
+    Files["files.rs<br/>create, rename, trash, copy, move inside workspace"]
+    Find["find.rs<br/>quick open (nucleo), search (ripgrep crates)"]
+    DiffRs["diff.rs<br/>line, word and block diffs"]
+    Pty["pty.rs<br/>portable-pty sessions, path:line links"]
+    Upd["update.rs<br/>update check"]
+    Lib --> DocRs
+    Lib --> MmRs
+    Lib --> WS
+    Lib --> Files
+    Lib --> Find
+    Lib --> DiffRs
+    Lib --> Pty
+    Lib --> Upd
+    DocRs --> HL
+  end
+
+  subgraph DISK["On disk"]
+    WSF[("Workspace folder<br/>.md, .mmd, any file")]
+    SES[("sessions.json<br/>sessions and settings")]
+    CACHE[("mermaid/ SVG cache")]
+  end
+
+  SHELL(["Shell or any program<br/>an agent is just a program"])
+
+  App <-->|"invoke commands"| Lib
+  Lib -->|"events: fs-change, diagram jobs"| App
+  TermUI <-->|"output channel, input, resize"| Pty
+  Pty <--> SHELL
+  WS -->|"notify watcher, 150 ms debounce"| WSF
+  WS --> SES
+  Files --> WSF
+  Find --> WSF
+  DocRs --> WSF
+  MmRs <--> CACHE
+  MmRs <-->|"pull queue, return SVG or error"| MF
