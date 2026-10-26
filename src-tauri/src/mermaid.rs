@@ -73,7 +73,15 @@ impl Mermaid {
         }
         match tokio::time::timeout(TIMEOUT, rx).await {
             Ok(Ok(reply)) => reply,
-            _ => Err("Mermaid did not answer".into()),
+            _ => {
+                // A helper that stopped answering would otherwise stay "open"
+                // for ever and every later diagram would wait out its timeout.
+                self.reset();
+                if let Some(w) = app.get_webview_window(LABEL) {
+                    let _ = w.destroy();
+                }
+                Err("Mermaid did not answer".into())
+            }
         }
     }
 
@@ -113,6 +121,10 @@ impl Mermaid {
 
     /// The helper's window went away (closed above, or its process died).
     pub fn closed(&self) {
+        self.reset();
+    }
+
+    fn reset(&self) {
         let mut inner = self.inner.lock().unwrap();
         inner.open = false;
         for (_, waiters) in inner.waiting.drain() {
