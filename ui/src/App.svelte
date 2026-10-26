@@ -501,6 +501,18 @@
   type MenuItem = { label: string; tail?: string; title?: string; key?: string; off?: boolean; run: () => void } | { label: string; off?: boolean; sub: MenuItem[] } | 'sep'
   type EditTarget = { kind: 'editor' } | { kind: 'field'; el: HTMLInputElement | HTMLTextAreaElement } | { kind: 'terminal' } | { kind: 'page' }
 
+  let tabsEl = $state<HTMLElement>()
+
+  /** The wheel scrolls the tabs sideways (they have no scrollbar). */
+  function wheelTabs(e: WheelEvent) {
+    if (tabsEl && Math.abs(e.deltaY) > Math.abs(e.deltaX)) tabsEl.scrollLeft += e.deltaY
+  }
+
+  $effect(() => {
+    const t = active
+    if (t) void tick().then(() => tabsEl?.querySelector('.tab.on')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }))
+  })
+
   let menu = $state<'file' | 'edit' | 'settings' | null>(null)
   /** What the Edit menu acts on, taken as it opens (menus never take the focus). */
   let target = $state<EditTarget>({ kind: 'page' })
@@ -1097,7 +1109,7 @@
         {/if}
       </div>
     </div>
-    <nav class="tabs">
+    <nav class="tabs" bind:this={tabsEl} onwheel={wheelTabs}>
       {#each session.tabs as t (t)}
         <div class="tab" class:on={t === active} class:gone={deleted[t]} title={t}>
           <button class="tab-name" onclick={() => (session.active = t)} onauxclick={(e) => e.button === 1 && close(t)}>

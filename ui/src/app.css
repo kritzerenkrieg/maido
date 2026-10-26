@@ -604,6 +604,11 @@ button {
   flex: 1;
   min-width: 0;
   overflow-x: auto;
+  /* No scrollbar over the tabs: the wheel scrolls them, and the active tab is kept in view. */
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar {
+  display: none;
 }
 .tab {
   display: flex;
