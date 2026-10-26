@@ -138,16 +138,35 @@ export class Session {
 
   /** Links on row `y` (1-based), found when the pointer is over it (D2). */
   private async links(y: number): Promise<ILink[] | undefined> {
-    const text = this.term.buffer.active.getLine(y - 1)?.translateToString(true) ?? ''
+    const buffer = this.term.buffer.active
     const out: ILink[] = []
     const taken: [number, number][] = []
     const range = (start: number, len: number) => ({ start: { x: start + 1, y }, end: { x: start + len, y } })
     const decorations = { underline: true, pointerCursor: true }
 
-    for (const m of text.matchAll(URL_RE)) {
+    // A URL a program wrapped over several rows is one link: read the whole
+    // wrapped line (rows are full width until the last), then place each URL
+    // by its offset.
+    let first = y - 1
+    while (first > 0 && buffer.getLine(first)?.isWrapped) first--
+    const rows: string[] = []
+    for (let r = first; ; r++) {
+      const line = buffer.getLine(r)
+      if (!line || (r > first && !line.isWrapped)) break
+      rows.push(line.translateToString(r + 1 < buffer.length && buffer.getLine(r + 1)?.isWrapped ? false : true))
+    }
+    const whole = rows.join('')
+    const cols = this.term.cols
+    const at = (offset: number) => ({ x: (offset % cols) + 1, y: first + 1 + Math.floor(offset / cols) })
+    const text = buffer.getLine(y - 1)?.translateToString(true) ?? ''
+    const rowStart = (y - 1 - first) * cols
+
+    for (const m of whole.matchAll(URL_RE)) {
       const url = m[0].replace(/[.,;:!?)\]]+$/, '')
-      taken.push([m.index, m.index + url.length])
-      out.push({ range: range(m.index, url.length), text: url, decorations, activate: (e) => (e.ctrlKey || e.metaKey) && this.opts.onurl(url) })
+      const [from, to] = [m.index, m.index + url.length - 1]
+      if (to < rowStart || from >= rowStart + cols) continue
+      taken.push([from - rowStart, to + 1 - rowStart])
+      out.push({ range: { start: at(from), end: at(to) }, text: url, decorations, activate: (e) => (e.ctrlKey || e.metaKey) && this.opts.onurl(url) })
     }
 
     const candidates: { at: number; text: string }[] = []
