@@ -65,7 +65,7 @@
     results = []
     status = ''
     error = ''
-    await api.search('', false, () => {}).catch(() => {})
+    await api.search('', () => {}).catch(() => {})
   }
 
   /** `text` cut into runs, the matched ranges marked. */
@@ -84,7 +84,7 @@
 
   onDestroy(() => {
     clearTimeout(timer)
-    if (status.startsWith('Searching')) void api.search('', false, () => {}).catch(() => {})
+    if (status.startsWith('Searching')) void api.search('', () => {}).catch(() => {})
   })
 </script>
 
