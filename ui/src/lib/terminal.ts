@@ -52,6 +52,22 @@ export class Session {
     })
     this.term.loadAddon(this.fit)
     this.term.onTitleChange(opts.ontitle)
+    // Ctrl+Shift+C / V copy and paste, as in other Linux and Windows terminals;
+    // plain Ctrl+C stays the shell's interrupt. macOS uses Cmd+C / V, which
+    // the webview already handles.
+    this.term.attachCustomKeyEventHandler((e) => {
+      if (e.type !== 'keydown' || !e.ctrlKey || !e.shiftKey || e.altKey) return true
+      if (e.code === 'KeyC') {
+        const text = this.term.getSelection()
+        if (text) void navigator.clipboard.writeText(text).catch(() => {})
+        return false
+      }
+      if (e.code === 'KeyV') {
+        void navigator.clipboard.readText().then((t) => t && this.term.paste(t), () => {})
+        return false
+      }
+      return true
+    })
     this.term.registerLinkProvider({ provideLinks: (y, done) => void this.links(y).then(done, () => done(undefined)) })
   }
 
