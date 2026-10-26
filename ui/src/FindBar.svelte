@@ -81,6 +81,28 @@
     show()
   }
 
+  /** The number field was just focused by a click: its selection must survive the mouse-up. */
+  let fresh = false
+
+  /** Jump to match number `n` (1-based; out of range is held to the nearest end). */
+  function jump(n: number) {
+    if (ranges.some((r) => !r.startContainer.isConnected)) collect()
+    if (!total || !Number.isFinite(n)) return
+    current = Math.min(total, Math.max(1, Math.round(n))) - 1
+    paint()
+    show()
+  }
+
+  function jumpKey(e: KeyboardEvent) {
+    if (e.key === 'Enter') {
+      jump(Number((e.currentTarget as HTMLInputElement).value))
+      input?.focus()
+    } else if (e.key === 'Escape') input?.focus()
+    else return
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
   function oninput() {
     collect()
     // Jump to the first match below the top of the view, as you type.
@@ -112,7 +134,14 @@
 
 <div class="find-bar" role="search">
   <input bind:this={input} bind:value={query} {oninput} {onkeydown} placeholder="Find in document" spellcheck="false" aria-label="Find in document" />
-  <span class="find-count">{query ? (total ? `${current + 1} of ${total}` : 'No matches') : ''}</span>
+  {#if query && total}
+    <span class="find-count">
+      <input class="find-jump" value={current + 1} onkeydown={jumpKey} onfocus={(e) => { e.currentTarget.select(); fresh = true }} onmouseup={(e) => { if (fresh) e.preventDefault(); fresh = false }} onblur={(e) => (e.currentTarget.value = String(current + 1))} inputmode="numeric" size={String(total).length} title="Jump to match (type a number, Enter)" aria-label="Match number" />
+      of {total}
+    </span>
+  {:else if query}
+    <span class="find-count">No matches</span>
+  {/if}
   <button onclick={() => step(-1)} disabled={!total} title="Previous (Shift+Enter)" aria-label="Previous match">↑</button>
   <button onclick={() => step(1)} disabled={!total} title="Next (Enter)" aria-label="Next match">↓</button>
   <button onclick={onclose} title="Close (Escape)" aria-label="Close">×</button>

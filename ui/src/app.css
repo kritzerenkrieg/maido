@@ -900,6 +900,13 @@ button {
   font-size: 12px;
   text-align: center;
 }
+.find-bar .find-jump {
+  width: auto;
+  min-width: 2.2em;
+  padding: 0 3px;
+  font-size: 12px;
+  text-align: center;
+}
 .find-bar button {
   padding: 1px 6px;
   color: var(--muted);
