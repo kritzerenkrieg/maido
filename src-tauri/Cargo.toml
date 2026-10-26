@@ -1,6 +1,6 @@
 [package]
 name = "maido"
-version = "0.1.0"
+version = "0.2.0"
 description = "Markdown and Mermaid reader with a shell beside the docs"
 edition.workspace = true
 license.workspace = true
