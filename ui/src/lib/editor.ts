@@ -41,6 +41,30 @@ const mermaid = StreamLanguage.define<null>({
   tokenTable: { comment: t.comment, string: t.string, operator: t.operator, keyword: t.keyword },
 })
 
+// LaTeX has no grammar here either: commands, comments, math, braces and the
+// alignment and line-break marks, which is what reading a source needs.
+const latex = StreamLanguage.define<{ math: boolean }>({
+  startState: () => ({ math: false }),
+  token(stream, state) {
+    if (stream.eatSpace()) return null
+    if (stream.match(/^%.*/)) return 'comment'
+    if (stream.match(/^\\(begin|end)\b/)) return 'keyword'
+    if (stream.match(/^\\([a-zA-Z@]+\*?|.)/)) return state.math ? 'string' : 'link'
+    if (stream.match(/^\$\$?/)) {
+      state.math = !state.math
+      return 'string'
+    }
+    if (state.math) {
+      stream.next()
+      return 'string'
+    }
+    if (stream.match(/^[{}[\]&]/)) return 'operator'
+    stream.next()
+    return null
+  },
+  tokenTable: { comment: t.comment, keyword: t.keyword, string: t.string, operator: t.operator, link: t.link },
+})
+
 const theme = EditorView.theme({
   '&': { height: '100%', fontSize: 'calc(14px * var(--doc-scale))', backgroundColor: 'var(--bg)', color: 'var(--fg)' },
   '.cm-scroller': { fontFamily: "ui-monospace, 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace", lineHeight: '1.55' },
@@ -63,12 +87,13 @@ const theme = EditorView.theme({
   '.cm-panel.cm-search label': { color: 'var(--muted)' },
 })
 
-export type Kind = 'markdown' | 'mermaid' | 'text'
+export type Kind = 'markdown' | 'mermaid' | 'latex' | 'text'
 
 export function kindOf(path: string): Kind {
   const ext = path.split('.').pop()?.toLowerCase() ?? ''
   if (ext === 'md' || ext === 'markdown') return 'markdown'
   if (ext === 'mmd' || ext === 'mermaid') return 'mermaid'
+  if (ext === 'tex' || ext === 'latex') return 'latex'
   return 'text'
 }
 
@@ -102,6 +127,7 @@ export function createState(text: string, kind: Kind, hooks: Hooks): EditorState
   ]
   if (kind === 'markdown') extensions.push(markdown())
   if (kind === 'mermaid') extensions.push(mermaid)
+  if (kind === 'latex') extensions.push(latex)
   return EditorState.create({ doc: text, extensions })
 }
 

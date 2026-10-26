@@ -233,11 +233,11 @@
   // ---- Export (L1–L3) ----
 
   function isMarkdown(path: string) {
-    return /\.(md|markdown)$/i.test(path)
+    return /\.(md|markdown|tex|latex)$/i.test(path)
   }
 
   async function printDoc() {
-    if (!activeFile || !isMarkdown(activeFile)) return say('Only Markdown documents print.')
+    if (!activeFile || !isMarkdown(activeFile)) return say('Only Markdown and LaTeX documents print.')
     await doc?.prepareExport()
     await api.printPage().catch((e) => say(`Not printed: ${e}`))
   }

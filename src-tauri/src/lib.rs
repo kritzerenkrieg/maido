@@ -3,6 +3,7 @@ mod doc;
 mod files;
 mod find;
 mod highlight;
+mod latex;
 mod mermaid;
 mod pty;
 mod update;
@@ -154,11 +155,12 @@ fn read_file(ws: &Workspace, path: &str) -> Result<(PathBuf, Option<String>, Str
 }
 
 /// `text` (the file on disk, or the editor's buffer) as the frontend shows it.
-fn view(ws: &Workspace, path: &str, full: &Path, text: String, have: Vec<String>) -> DocView {
+fn view(ws: &Workspace, path: &str, full: &Path, mut text: String, have: Vec<String>) -> DocView {
     let ext = full.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
     match ext.as_str() {
         "mmd" | "mermaid" => return DocView::Mermaid { source: text },
         "md" | "markdown" => {}
+        "tex" | "latex" => text = latex::to_markdown(&text),
         _ => return DocView::Text { text },
     }
 

@@ -184,7 +184,7 @@ export const api = {
   removeRoot: (id: number) => invoke<void>('remove_root', { id }),
 }
 
-export const DOC_EXTENSIONS = ['md', 'markdown', 'mmd', 'mermaid']
+export const DOC_EXTENSIONS = ['md', 'markdown', 'mmd', 'mermaid', 'tex', 'latex']
 
 export function isDoc(path: string): boolean {
   return DOC_EXTENSIONS.includes(path.split('.').pop()?.toLowerCase() ?? '')

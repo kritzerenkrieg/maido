@@ -52,12 +52,13 @@
   })
 
   /** The icon of a file: Markdown and Mermaid have their own, everything else a plain file. */
-  function icon(name: string): 'md' | 'mmd' | 'img' | 'pdf' | 'file' {
+  function icon(name: string): 'md' | 'mmd' | 'tex' | 'img' | 'pdf' | 'file' {
     const ext = name.slice(name.lastIndexOf('.') + 1).toLowerCase()
     if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'avif', 'ico', 'svg'].includes(ext)) return 'img'
     if (ext === 'pdf') return 'pdf'
     if (ext === 'md' || ext === 'markdown') return 'md'
     if (ext === 'mmd' || ext === 'mermaid') return 'mmd'
+    if (ext === 'tex' || ext === 'latex') return 'tex'
     return 'file'
   }
 
@@ -90,7 +91,7 @@
   {/each}
 </ul>
 
-{#snippet fileIcon(kind: 'md' | 'mmd' | 'img' | 'pdf' | 'file')}
+{#snippet fileIcon(kind: 'md' | 'mmd' | 'tex' | 'img' | 'pdf' | 'file')}
   <svg class="ficon {kind}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
     {#if kind === 'md'}
       <rect x="1" y="3" width="14" height="10" rx="2" />
@@ -100,6 +101,9 @@
       <rect x="1" y="10.8" width="5" height="3.4" rx="1" />
       <rect x="10" y="10.8" width="5" height="3.4" rx="1" />
       <path d="M8 5.2v2.6M3.5 10.8V7.8h9v3" />
+    {:else if kind === 'tex'}
+      <rect x="1" y="3" width="14" height="10" rx="2" />
+      <path d="M4 6h4M6 6v5M10 6l3 5M13 6l-3 5" />
     {:else if kind === 'img'}
       <rect x="1.5" y="2.5" width="13" height="11" rx="2" />
       <circle cx="5.4" cy="6.2" r="1.2" />

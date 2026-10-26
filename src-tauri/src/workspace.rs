@@ -17,7 +17,7 @@ use tauri::{AppHandle, Emitter};
 use crate::doc::{Document, normalize, percent_decode};
 
 /// Shown in the tree unless "all files" is on.
-pub const DOC_EXTENSIONS: [&str; 4] = ["md", "markdown", "mmd", "mermaid"];
+pub const DOC_EXTENSIONS: [&str; 6] = ["md", "markdown", "mmd", "mermaid", "tex", "latex"];
 
 /// A folder added beside the workspace's own. Its paths read `@<id>/…`; the
 /// workspace folder's paths have no prefix.

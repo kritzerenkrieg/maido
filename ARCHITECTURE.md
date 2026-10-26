@@ -11,6 +11,7 @@ Last updated: 2026-10-22.
 | `Cargo.toml` | Cargo workspace; release profile (LTO, one codegen unit, `panic = "abort"`, stripped) |
 | `src-tauri/src/lib.rs` | Tauri commands, windows (one per workspace), `maido <path>`, single instance |
 | `src-tauri/src/doc.rs` | Markdown → blocks: parsing, sanitizing, heading ids, image rewriting, incremental re-parse (H5) and its tests |
+| `src-tauri/src/latex.rs` | `.tex` / `.latex` → Markdown with math, for the same block pipeline (C3) |
 | `src-tauri/src/highlight.rs` | `syntect` highlighting and its cache (H4) |
 | `src-tauri/src/mermaid.rs` | Mermaid SVG disk cache and the hidden helper webview (H3) |
 | `src-tauri/src/workspace.rs` | Tree listing, link resolution, file watcher, saved sessions (E1, E2) |
@@ -73,6 +74,8 @@ As built: any `mermaid` fence, nested ones included, is replaced by its diagram 
 **Math.** KaTeX, Phase 4, loaded only when a document has math. Rust marks math spans while parsing, so the frontend never scans text for `$`. (C3)
 
 As built (Phase 4): comrak's `$…$`, `$$…$$` and `` $`…`$ `` syntax and ```` ```math ```` fences; a dollar followed by a space or digit stays text ("$5 and $6"). The sanitizer lets `data-math-style` through (values `inline` and `display` only), and each block tells the frontend whether it has math. When such a block comes near the view, KaTeX (259 KB, plus its fonts) loads and typesets it. KaTeX runs with `trust: false` (no `\href`, `\url`, `\includegraphics`) and renders bad TeX as a red message in place.
+
+**LaTeX files.** A `.tex` / `.latex` file is read, not compiled: `latex.rs` turns the source into Markdown line by line (sections to headings, emphasis, lists, quotes, `verbatim` and `lstlisting` to fences, simple `tabular`s to tables, `\includegraphics` to images, `\href` and `\url` to links, `\cite` and `\ref` to `[key]`) and every math form into comrak's math syntax (`$`…`$` for inline, so a leading digit is not mistaken for a price; a ```` ```math ```` fence for `equation`, `\[ \]` and `$$` blocks, with `align` wrapped in `aligned` and `gather` in `gathered`, which is what KaTeX has). The result goes through the Markdown path unchanged, so blocks, re-parse, KaTeX, outline, find, print and the editor's live preview all work. Not run: macros, packages, page layout, bibliographies. Lines stay in step with the source except where a nested list's opener is dropped, or a table, title block or display-math line adds one, so scroll sync is approximate there. The editor colours LaTeX (`editor.ts`). Tested through the real parser (`latex.rs` tests).
 
 **Export.** (L1) PDF: the system print dialog ("Print to file") with a print stylesheet that shows the document alone, all of it, in light colours; with a dark theme, diagrams get a light copy that only prints. Every export goes through Rust, which opens the save dialog (starting in the document's folder) and writes only to the path chosen there.
 
