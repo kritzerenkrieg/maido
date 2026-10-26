@@ -1261,24 +1261,35 @@
             {/if}
           </div>
         {:else if activeFile}
-          <Document
-            bind:this={doc}
-            path={activeFile}
-            version={versions[activeFile] ?? 0}
-            remote={allowRemote}
-            line={session.scroll[activeFile] ?? 1}
-            {anchor}
-            source={dirty[activeFile] ? (preview[activeFile] ?? null) : null}
-            onloaded={(d) => {
-              outline = d.outline
-              remoteImages = d.remoteImages
-            }}
-            onlink={(p, a) => open(p, a)}
-            onscrollline={(l) => {
-              if (activeFile) session.scroll[activeFile] = l
-            }}
-            onsend={sendToTerminal}
-          />
+          <!-- An error while drawing one file must not leave the pane dead for the next: keyed by file, so changing document starts clean. -->
+          {#key activeFile}
+            <svelte:boundary onerror={(e) => console.error('document render failed', e)}>
+              <Document
+                bind:this={doc}
+                path={activeFile}
+                version={versions[activeFile] ?? 0}
+                remote={allowRemote}
+                line={session.scroll[activeFile] ?? 1}
+                {anchor}
+                source={dirty[activeFile] ? (preview[activeFile] ?? null) : null}
+                onloaded={(d) => {
+                  outline = d.outline
+                  remoteImages = d.remoteImages
+                }}
+                onlink={(p, a) => open(p, a)}
+                onscrollline={(l) => {
+                  if (activeFile) session.scroll[activeFile] = l
+                }}
+                onsend={sendToTerminal}
+            />
+              {#snippet failed(error, reset)}
+                <div class="doc-error">
+                  Could not draw this file: {String(error)}
+                  <button onclick={reset}>Try again</button>
+                </div>
+              {/snippet}
+            </svelte:boundary>
+          {/key}
         {:else if ready}
           <div class="empty">
             <p>Open a file from the tree.</p>

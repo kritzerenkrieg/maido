@@ -50,7 +50,11 @@
     untrack(() => void load(p, text))
   })
 
+  /** The latest request: an older answer arriving late must not replace a newer one. */
+  let request = 0
+
   async function load(p: string, text: string | null = null) {
+    const mine = ++request
     const same = p === loadedPath && view?.kind === 'markdown'
     const have = same ? blocks.map((b) => b.key) : []
     const keep = same ? topBlock() : null
@@ -58,10 +62,17 @@
     try {
       v = text == null ? await api.loadDocument(p, have) : await api.previewDocument(p, text, have)
     } catch (e) {
-      if (p === path) error = String(e)
+      if (mine !== request) return
+      // Nothing of the last document stays on screen under the error, and the
+      // next load starts fresh instead of diffing against blocks that are gone.
+      error = String(e)
+      view = null
+      blocks = []
+      loadedPath = ''
+      onloaded({ outline: [], remoteImages: 0 })
       return
     }
-    if (p !== path) return
+    if (mine !== request || p !== path) return
     error = ''
     if (v.kind === 'markdown') {
       const before = new Set(have)
