@@ -18,6 +18,7 @@ Last updated: 2026-10-22.
 | `ui/src/App.svelte` | The window: top bar and menus, sidebar (Explorer, outline, search), tabs, banners, follow mode |
 | `src-tauri/src/files.rs` | The Explorer's file actions: create, rename, trash, copy and move, kept inside the workspace (N4) |
 | `ui/src/Document.svelte` | One document: keyed blocks, scroll keeping, lazy highlighting and diagrams, links |
+| `ui/src/PdfPage.svelte` | A PDF file: pdf.js, loaded with the first PDF, draws pages into canvases as they near the view |
 | `ui/src/MermaidPage.svelte` | `.mmd` / `.mermaid` files: one diagram with zoom and pan |
 | `ui/src/mermaid-frame.ts` | The hidden Mermaid helper's page |
 | `src-tauri/src/pty.rs` | Terminal sessions (PTY, output channel, current folder) and `path:line` parsing (D1, D2) |
@@ -116,6 +117,8 @@ Path-based, like VS Code. The file tree respects `.gitignore` (`ignore` crate) a
 **More than one folder.** File > Add folder to workspace adds a folder beside the window's own; the Explorer shows each under its name (a folded or expanded header, with "Remove from workspace" in its right-click menu; nothing on disk changes). The window's own folder keeps plain relative paths; an added folder's paths read `@<id>/…` (ids are stable and never renumbered while the workspace lives), so tabs, links, search results and the session all stay plain strings. `Workspace::resolve` and `relative` map between the two, and every path is still checked to stay inside the folder it names. Quick open, search, the watcher and the `.gitignore` handling run over every folder; a terminal starts in the window's own folder. The added folders are saved per workspace (`roots:<folder>` in the sessions file) and restored with it.
 
 **Recent folders.** The last ten folders a window opened are kept in the settings; File lists the latest five besides the current one, and the command palette has an entry for each. Choosing one switches the window as Open folder does.
+
+**Pictures and PDFs.** PNG, JPEG, WebP, GIF, BMP, AVIF, ICO and SVG files open for reading as a picture (the file itself, through the asset protocol, so it costs no memory in Rust). A PDF is read by Rust (`read_pdf`, up to 50 MB, workspace files only) and drawn by pdf.js, which loads with the first PDF: pages get canvases of the right shape at once, are drawn within 800 px of the view and emptied beyond 2,400 px. Neither can be edited.
 
 **Files changed on disk** (`notify`, short debounce) reload through block diffing: only changed blocks update, the scroll position stays, and changed blocks are briefly highlighted so you see what an agent just did. New and deleted files update the tree live. (E2)
 

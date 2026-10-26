@@ -317,6 +317,7 @@
 
   function toggleEdit() {
     if (!activeFile) return
+    if (/\.(png|jpe?g|webp|gif|bmp|avif|ico|pdf)$/i.test(activeFile)) return say('Pictures and PDFs open for reading only.')
     if (editing[activeFile]) editing[activeFile] = false
     else void startEdit(activeFile)
   }

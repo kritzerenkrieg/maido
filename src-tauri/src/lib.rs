@@ -123,7 +123,17 @@ enum DocView {
     Markdown { blocks: Vec<BlockView>, outline: Vec<OutlineItem>, remote_images: usize },
     Mermaid { source: String },
     Text { text: String },
+    /// A picture, shown from its file through the asset protocol.
+    Image { path: String },
+    /// Drawn by the frontend from the bytes `read_pdf` sends.
+    Pdf,
     Binary,
+}
+
+const IMAGE_EXTENSIONS: [&str; 9] = ["png", "jpg", "jpeg", "webp", "gif", "bmp", "avif", "ico", "svg"];
+
+fn extension(path: &str) -> String {
+    Path::new(path).extension().map(|e| e.to_string_lossy().to_ascii_lowercase()).unwrap_or_default()
 }
 
 /// A workspace file as text: its path, its text (None for a binary file)
@@ -184,10 +194,34 @@ fn view(ws: &Workspace, path: &str, full: &Path, text: String, have: Vec<String>
 #[tauri::command]
 async fn load_document(window: WebviewWindow, windows: State<'_, Windows>, path: String, have: Vec<String>) -> Result<DocView, String> {
     let ws = windows.get(&window)?;
+    let ext = extension(&path);
+    if IMAGE_EXTENSIONS.contains(&ext.as_str()) {
+        return Ok(DocView::Image { path: ws.resolve(&path)?.to_string_lossy().into_owned() });
+    }
+    if ext == "pdf" {
+        ws.resolve(&path)?;
+        return Ok(DocView::Pdf);
+    }
     match read_file(&ws, &path)? {
         (full, Some(text), _) => Ok(view(&ws, &path, &full, text, have)),
         (_, None, _) => Ok(DocView::Binary),
     }
+}
+
+/// A PDF's bytes, for the page to draw (a PDF is not shown by the web view
+/// itself). Only `.pdf` files inside the workspace, up to 50 MB.
+#[tauri::command]
+async fn read_pdf(window: WebviewWindow, windows: State<'_, Windows>, path: String) -> Result<Response, String> {
+    let ws = windows.get(&window)?;
+    if extension(&path) != "pdf" {
+        return Err(format!("{path} is not a PDF"));
+    }
+    let full = ws.resolve(&path)?;
+    let meta = std::fs::metadata(&full).map_err(|e| e.to_string())?;
+    if meta.len() > 50 * 1024 * 1024 {
+        return Err(format!("{path} is {} MB; maido shows PDFs up to 50 MB", meta.len() / 1024 / 1024));
+    }
+    std::fs::read(&full).map(Response::new).map_err(|e| e.to_string())
 }
 
 /// The editor's live preview (B5): the unsaved buffer, through the same
@@ -724,6 +758,7 @@ pub fn run() {
             load_document,
             preview_document,
             load_source,
+            read_pdf,
             save_file,
             diff_lines,
             diff_rendered,

@@ -43,6 +43,8 @@ export type DocView =
   | { kind: 'markdown'; blocks: BlockView[]; outline: OutlineItem[]; remote_images: number }
   | { kind: 'mermaid'; source: string }
   | { kind: 'text'; text: string }
+  | { kind: 'image'; path: string }
+  | { kind: 'pdf' }
   | { kind: 'binary' }
 
 export interface FsChange {
@@ -134,6 +136,7 @@ export const api = {
   listDir: (path: string, all: boolean) => invoke<Entry[]>('list_dir', { path, all }),
   loadDocument: (path: string, have: string[]) => invoke<DocView>('load_document', { path, have }),
   previewDocument: (path: string, text: string, have: string[]) => invoke<DocView>('preview_document', { path, text, have }),
+  readPdf: (path: string) => invoke<ArrayBuffer>('read_pdf', { path }),
   loadSource: (path: string) => invoke<{ text: string; hash: string }>('load_source', { path }),
   /** Rejects with "conflict" when the file changed on disk since `base` (E3). */
   saveFile: (path: string, text: string, base: string, force = false) => invoke<string>('save_file', { path, text, base, force }),

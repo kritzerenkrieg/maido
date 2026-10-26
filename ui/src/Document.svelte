@@ -5,6 +5,7 @@
   // blocks come into view (H3, H4).
   import { onDestroy, tick, untrack } from 'svelte'
   import FindBar from './FindBar.svelte'
+  import { convertFileSrc } from '@tauri-apps/api/core'
   import { api, type BlockView, type DocView, type OutlineItem } from './lib/api'
   import { closeExportMenu } from './lib/diagram-export'
   import { fragment } from './lib/html'
@@ -12,6 +13,7 @@
   import { printCopies, redrawDiagrams, replaceFence } from './lib/mermaid'
   import { onThemeChange } from './lib/theme'
   import MermaidPage from './MermaidPage.svelte'
+  import PdfPage from './PdfPage.svelte'
 
   interface Props {
     path: string
@@ -293,6 +295,10 @@
     <MermaidPage source={view.source} {path} />
   {:else if view?.kind === 'text'}
     <pre class="raw">{view.text}</pre>
+  {:else if view?.kind === 'image'}
+    <div class="image-page"><img src="{convertFileSrc(view.path)}?v={version}" alt={path.slice(path.lastIndexOf('/') + 1)} /></div>
+  {:else if view?.kind === 'pdf'}
+    <PdfPage {path} {version} />
   {:else if view?.kind === 'binary'}
     <p class="doc-note">Binary file: not shown.</p>
   {/if}

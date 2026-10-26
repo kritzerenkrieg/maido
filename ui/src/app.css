@@ -571,6 +571,12 @@ button {
 .ficon.mmd {
   color: #ff3670;
 }
+.ficon.img {
+  color: #22a06b;
+}
+.ficon.pdf {
+  color: #e5484d;
+}
 .ficon.file {
   color: #8b95a7;
 }
@@ -1335,6 +1341,33 @@ button {
   img {
     break-inside: avoid;
   }
+}
+
+/* Pictures and PDFs: shown as files, not as documents. */
+.image-page {
+  display: flex;
+  justify-content: center;
+  padding: 24px;
+}
+.image-page img {
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+  background: repeating-conic-gradient(color-mix(in srgb, var(--fg) 6%, transparent) 0 25%, transparent 0 50%) 0 0 / 16px 16px;
+}
+.pdf-pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 24px;
+}
+.pdf-page {
+  width: 100%;
+  max-width: 900px;
+  height: auto;
+  background: #fff;
+  box-shadow: 0 1px 6px rgb(0 0 0 / 0.25);
 }
 
 /* A folder's name above its tree, when the workspace has more than one: a
