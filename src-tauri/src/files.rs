@@ -159,7 +159,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("maido-files-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(dir.join("docs")).unwrap();
-        let ws = Workspace::new(dir.canonicalize().unwrap(), None);
+        let ws = Workspace::new(dir.canonicalize().unwrap(), None, vec![]);
 
         assert_eq!(create(&ws, "docs", "a.md", false).unwrap(), "docs/a.md");
         assert!(create(&ws, "docs", "a.md", false).is_err());

@@ -40,6 +40,46 @@ struct WorkspaceInfo {
     root: String,
     name: String,
     initial: Option<String>,
+    /// Folders added beside the workspace's own.
+    roots: Vec<RootInfo>,
+}
+
+#[derive(Serialize)]
+struct RootInfo {
+    id: u32,
+    name: String,
+    path: String,
+}
+
+fn root_info(e: workspace::Extra) -> RootInfo {
+    RootInfo { id: e.id, name: folder_name(&e.path), path: e.path.to_string_lossy().into_owned() }
+}
+
+/// The folders added to the workspace on `root`, as last saved.
+fn saved_roots(sessions: &Sessions, root: &Path) -> Vec<workspace::Extra> {
+    let saved = sessions.get(&format!("roots:{}", root.to_string_lossy()));
+    let list: Vec<(u32, String)> = serde_json::from_value::<Vec<serde_json::Value>>(saved)
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|v| Some((v.get("id")?.as_u64()? as u32, v.get("path")?.as_str()?.to_string())))
+        .collect();
+    list.into_iter().filter_map(|(id, p)| Some(workspace::Extra { id, path: PathBuf::from(p).canonicalize().ok().filter(|p| p.is_dir())? })).collect()
+}
+
+fn save_roots(sessions: &Sessions, ws: &Workspace) -> Result<(), String> {
+    let list: Vec<_> = ws.extras().iter().map(|e| serde_json::json!({ "id": e.id, "path": e.path })).collect();
+    sessions.set(&format!("roots:{}", ws.root.to_string_lossy()), list.into())
+}
+
+/// A workspace on `root` with the folders saved for it; their files may be
+/// shown as images.
+fn new_workspace(app: &AppHandle, root: PathBuf, initial: Option<String>) -> Arc<Workspace> {
+    let extras = saved_roots(&app.state::<Sessions>(), &root);
+    for e in &extras {
+        let _ = app.asset_protocol_scope().allow_directory(&e.path, true);
+    }
+    let _ = app.asset_protocol_scope().allow_directory(&root, true);
+    Arc::new(Workspace::new(root, initial, extras))
 }
 
 /// A workspace's name: its folder's name (or the whole path for `/`).
@@ -50,7 +90,7 @@ fn folder_name(root: &Path) -> String {
 #[tauri::command]
 fn workspace_info(window: WebviewWindow, windows: State<Windows>) -> Result<WorkspaceInfo, String> {
     let ws = windows.get(&window)?;
-    Ok(WorkspaceInfo { root: ws.root.to_string_lossy().into_owned(), name: folder_name(&ws.root), initial: ws.initial.clone() })
+    Ok(WorkspaceInfo { root: ws.root.to_string_lossy().into_owned(), name: folder_name(&ws.root), initial: ws.initial.clone(), roots: ws.extras().into_iter().map(root_info).collect() })
 }
 
 #[tauri::command]
@@ -115,10 +155,10 @@ fn view(ws: &Workspace, path: &str, full: &Path, text: String, have: Vec<String>
     let mut docs = ws.docs.lock().unwrap();
     let doc = match docs.get_mut(path) {
         Some(d) => {
-            d.update(text, full, &ws.root);
+            d.update(text, full, &ws.root_for(full));
             d
         }
-        None => docs.entry(path.to_string()).or_insert_with(|| Document::parse(text, full, &ws.root)),
+        None => docs.entry(path.to_string()).or_insert_with(|| Document::parse(text, full, &ws.root_for(full))),
     };
     let have: std::collections::HashSet<String> = have.into_iter().collect();
     let mut seen: HashMap<&str, usize> = HashMap::new();
@@ -260,12 +300,44 @@ async fn open_folder(app: AppHandle, window: WebviewWindow, windows: State<'_, W
         return Ok(false);
     }
     app.state::<Terminals>().close_window(window.label());
-    let ws = Arc::new(Workspace::new(root.clone(), None));
+    let ws = new_workspace(&app, root.clone(), None);
     windows.0.lock().unwrap().insert(window.label().to_string(), ws.clone());
-    let _ = app.asset_protocol_scope().allow_directory(&root, true);
     let _ = window.set_title(&format!("{} — maido", folder_name(&root)));
     ws.watch(app.clone(), window.label().to_string());
     Ok(true)
+}
+
+/// File > Add folder to workspace: shows the folder dialog and adds the
+/// choice beside the workspace's own folder. Returns it, or nothing when the
+/// dialog was cancelled.
+#[tauri::command]
+async fn add_root(app: AppHandle, window: WebviewWindow, windows: State<'_, Windows>, sessions: State<'_, Sessions>, path: Option<String>) -> Result<Option<RootInfo>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let ws = windows.get(&window)?;
+    let path = match path {
+        Some(p) => PathBuf::from(p),
+        None => {
+            let (tx, rx) = tokio::sync::oneshot::channel();
+            window.dialog().file().set_parent(&window).set_title("Add folder to workspace").set_directory(&ws.root).pick_folder(move |path| {
+                let _ = tx.send(path);
+            });
+            let Some(path) = rx.await.map_err(|e| e.to_string())? else { return Ok(None) };
+            path.into_path().map_err(|e| e.to_string())?
+        }
+    };
+    let extra = ws.add_root(path)?;
+    let _ = app.asset_protocol_scope().allow_directory(&extra.path, true);
+    save_roots(&sessions, &ws)?;
+    Ok(Some(root_info(extra)))
+}
+
+/// Take an added folder out of the workspace (nothing on disk changes).
+#[tauri::command]
+fn remove_root(window: WebviewWindow, windows: State<Windows>, sessions: State<Sessions>, id: u32) -> Result<(), String> {
+    let ws = windows.get(&window)?;
+    ws.remove_root(id);
+    ws.docs.lock().unwrap().retain(|k, _| !k.starts_with(&format!("@{id}/")));
+    save_roots(&sessions, &ws)
 }
 
 /// One side of the diff window: a workspace file or pasted text (E5).
@@ -301,7 +373,8 @@ async fn diff_rendered(window: WebviewWindow, windows: State<'_, Windows>, left:
             Some(p) => ws.resolve(p)?,
             None => ws.root.join("pasted.md"),
         };
-        Ok(Document::parse(side.read(&ws)?, &at, &ws.root))
+        let root = ws.root_for(&at);
+        Ok(Document::parse(side.read(&ws)?, &at, &root))
     };
     let (a, b) = (parse(&left)?, parse(&right)?);
     Ok(diff::blocks(&a.blocks, &b.blocks))
@@ -474,9 +547,9 @@ fn search(window: WebviewWindow, windows: State<Windows>, query: String, results
     if query.is_empty() {
         return Ok(());
     }
-    let (root, generation) = (ws.root.clone(), ws.search.clone());
+    let (roots, generation) = (ws.roots(), ws.search.clone());
     std::thread::spawn(move || {
-        find::search(&root, &query, &generation, mine, |e| {
+        find::search(&roots, &query, &generation, mine, |e| {
             let _ = results.send(e);
         })
     });
@@ -543,9 +616,8 @@ fn open_window(app: &AppHandle, root: PathBuf, initial: Option<String>) -> Resul
         }
         (1..).map(|n| if n == 1 { "main".to_string() } else { format!("main-{n}") }).find(|l| !map.contains_key(l)).unwrap()
     };
-    let ws = Arc::new(Workspace::new(root.clone(), initial));
+    let ws = new_workspace(app, root.clone(), initial);
     windows.0.lock().unwrap().insert(label.clone(), ws.clone());
-    let _ = app.asset_protocol_scope().allow_directory(&root, true);
     WebviewWindowBuilder::new(app, &label, WebviewUrl::App("index.html".into()))
         .title(format!("{} — maido", folder_name(&root)))
         .inner_size(1200.0, 800.0)
@@ -675,6 +747,8 @@ pub fn run() {
             clipboard_read,
             clipboard_write,
             open_folder,
+            add_root,
+            remove_root,
             update::check_update,
             update::install_update,
         ])

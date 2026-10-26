@@ -1336,3 +1336,26 @@ button {
     break-inside: avoid;
   }
 }
+
+/* A folder's name above its tree, when the workspace has more than one: a
+   tinted band with an accent edge, so folders read apart at a glance. */
+.root-head {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 5px 8px;
+  margin-top: 4px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-left: 3px solid var(--accent);
+}
+.root-head:hover {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+}
+.root-head.marked {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}

@@ -1,7 +1,7 @@
 //! Quick open and full-text search (E1). Both walk the workspace the way the
 //! tree does: `.gitignore` respected, hidden files left out.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -95,13 +95,14 @@ pub enum SearchEvent {
 /// case-insensitive unless the query has capitals). Results go to
 /// `send` file by file. Stops early when `generation` moves past `mine` (a
 /// newer search started).
-pub fn search(root: &Path, query: &str, generation: &Arc<AtomicU64>, mine: u64, mut send: impl FnMut(SearchEvent)) {
+pub fn search(roots: &[(String, PathBuf)], query: &str, generation: &Arc<AtomicU64>, mine: u64, mut send: impl FnMut(SearchEvent)) {
     let matcher = match RegexMatcherBuilder::new().case_smart(true).fixed_strings(true).build(query) {
         Ok(m) => m,
         Err(e) => return send(SearchEvent::Error { message: e.to_string() }),
     };
     let mut searcher = SearcherBuilder::new().binary_detection(BinaryDetection::quit(0)).line_number(true).build();
     let (mut files, mut total, mut truncated) = (0, 0, false);
+    'roots: for (prefix, root) in roots {
     for entry in walker(root).build().filter_map(Result::ok) {
         if generation.load(Ordering::Relaxed) != mine {
             return;
@@ -110,6 +111,7 @@ pub fn search(root: &Path, query: &str, generation: &Arc<AtomicU64>, mine: u64, 
             continue;
         }
         let Some(rel) = entry.path().strip_prefix(root).ok().map(|p| p.to_string_lossy().replace('\\', "/")) else { continue };
+        let rel = if prefix.is_empty() { rel } else { format!("{prefix}/{rel}") };
         let mut matches = Vec::new();
         let _ = searcher.search_path(
             &matcher,
@@ -137,8 +139,9 @@ pub fn search(root: &Path, query: &str, generation: &Arc<AtomicU64>, mine: u64, 
         }
         send(SearchEvent::File { path: rel, matches });
         if total >= MAX_MATCHES {
-            break;
+            break 'roots;
         }
+    }
     }
     send(SearchEvent::Done { files, matches: total, truncated });
 }
@@ -191,7 +194,7 @@ mod tests {
         std::fs::write(root.join("ignored.md"), "world\n").unwrap();
         let generation = Arc::new(AtomicU64::new(1));
         let mut events = Vec::new();
-        search(&root, "world", &generation, 1, |e| events.push(e));
+        search(&[(String::new(), root.clone())], "world", &generation, 1, |e| events.push(e));
         let mut found: Vec<(String, Vec<(u64, Vec<(usize, usize)>)>)> = events
             .iter()
             .filter_map(|e| match e {
@@ -204,7 +207,7 @@ mod tests {
         assert!(matches!(events.last(), Some(SearchEvent::Done { files: 2, matches: 3, truncated: false })));
         // Capitals make it case-sensitive.
         let mut events = Vec::new();
-        search(&root, "World", &generation, 1, |e| events.push(e));
+        search(&[(String::new(), root.clone())], "World", &generation, 1, |e| events.push(e));
         assert!(matches!(events.last(), Some(SearchEvent::Done { matches: 1, .. })));
         let _ = std::fs::remove_dir_all(&root);
     }

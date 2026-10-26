@@ -18,7 +18,7 @@
   import type { Command } from './Palette.svelte'
   import type SearchT from './Search.svelte'
   import Tree from './Tree.svelte'
-  import { api, isDoc, type Entry, type FsChange, type OutlineItem, type Session, type Settings, type UpdateInfo, type WorkspaceInfo } from './lib/api'
+  import { api, isDoc, type Entry, type FsChange, type OutlineItem, type RootInfo, type Session, type Settings, type UpdateInfo, type WorkspaceInfo } from './lib/api'
   import type { Buffer } from './lib/buffers'
     import type { LinkTarget } from './lib/terminal'
   import { applyTheme } from './lib/theme'
@@ -39,6 +39,9 @@
     checkUpdates: true,
     updateCheckedAt: 0,
   })
+  /** Folders added beside the workspace's own, and which of them are folded in the Explorer (0 is the own one). */
+  let roots = $state<RootInfo[]>([])
+  let folded = $state<Record<number, boolean>>({})
   let ready = $state(false)
   let sidebar = $state<'files' | 'outline' | 'search'>('files')
   let versions = $state<Record<string, number>>({})
@@ -243,6 +246,7 @@
     const list: (Command | false)[] = [
       { title: 'Open file…', key: 'Ctrl+O', run: () => void showPalette('') },
       { title: 'Open folder…', run: () => void openFolder() },
+      { title: 'Add folder to workspace…', run: () => void addFolder() },
       { title: 'New file…', key: 'Ctrl+N', run: () => void newItem(here(), false) },
       { title: 'New folder…', run: () => void newItem(here(), true) },
       !!f && { title: 'Find in document', key: 'Ctrl+F', run: findInDocument },
@@ -543,6 +547,29 @@
     }
   }
 
+  /** File > Add folder to workspace: the Explorer shows it below the others. */
+  async function addFolder() {
+    try {
+      const r = await api.addRoot()
+      if (r) roots.push(r)
+    } catch (e) {
+      say(`Not added: ${e}`)
+    }
+  }
+
+  async function removeFolder(r: RootInfo) {
+    const path = `@${r.id}`
+    if (unsavedUnder([path])) return
+    if ((await ask(`Remove ${r.name} from the workspace? Nothing is deleted.`, 'Remove')) === null) return
+    try {
+      await api.removeRoot(r.id)
+      for (const t of tabsUnder(path)) forget(t)
+      roots = roots.filter((x) => x.id !== r.id)
+    } catch (e) {
+      say(`Not removed: ${e}`)
+    }
+  }
+
   /** Copy (or cut) the selection to the system clipboard. */
   async function copySelection(cut: boolean) {
     const t = target
@@ -607,6 +634,7 @@
       'sep',
       { label: 'Open file…', key: 'Ctrl+O', run: () => void showPalette('') },
       { label: 'Open folder…', run: () => void openFolder() },
+      { label: 'Add folder to workspace…', run: () => void addFolder() },
       'sep',
       { label: 'Save', key: 'Ctrl+S', off: !f || !dirty[f], run: () => f && void save(f) },
       { label: 'Save all', off: !anyDirty, run: () => void saveAll() },
@@ -738,6 +766,17 @@
   function contextMenu(entry: Entry | null): MenuItem[] {
     const dir = folderOf(entry)
     const clip = fileClip
+    const root = entry && /^@\d+$/.test(entry.path) ? roots.find((r) => `@${r.id}` === entry.path) : undefined
+    if (root) {
+      return [
+        { label: 'New file…', run: () => void newItem(dir, false) },
+        { label: 'New folder…', run: () => void newItem(dir, true) },
+        { label: 'Paste', off: !clip, run: () => void pasteFiles(dir) },
+        'sep',
+        { label: 'Remove from workspace', run: () => void removeFolder(root) },
+        { label: 'Copy path', run: () => void api.clipboardWrite(root.path).catch((e) => say(`Not copied: ${e}`)) },
+      ]
+    }
     const items: MenuItem[] = [{ label: 'New file…', run: () => void newItem(dir, false) }, { label: 'New folder…', run: () => void newItem(dir, true) }, 'sep']
     if (entry) {
       items.push({ label: 'Cut', run: () => (fileClip = { paths: [entry.path], cut: true }) })
@@ -864,6 +903,7 @@
       document.head.append(style)
 
       info = await api.workspaceInfo()
+      roots = info.roots
       const saved = await api.loadSession().catch(() => null)
       if (saved) session = { ...session, ...saved, scroll: saved.scroll ?? {} }
       const s = await api.loadSettings().catch(() => null)
@@ -1044,7 +1084,7 @@
 
   <aside class="sidebar">
     <header class="sidebar-head">
-      <strong title={info?.root}>{info?.name ?? ''}</strong>
+      <strong title={info?.root}>{info?.name ?? ''}{#if roots.length} + {roots.length}{/if}</strong>
     </header>
     <div class="sidebar-tabs" role="tablist">
       <button role="tab" aria-selected={sidebar === 'files'} class:on={sidebar === 'files'} onclick={() => (sidebar = 'files')}>Explorer</button>
@@ -1054,7 +1094,18 @@
     <div class="sidebar-body" role="presentation" oncontextmenu={(e) => sidebar === 'files' && showContext(e, null)}>
       {#if sidebar === 'files'}
         {#if ready}
-          <Tree path="" all={session.all} {active} marked={ctx?.entry?.path ?? null} onopen={(p) => open(p)} oncontext={showContext} />
+          <button class="root-head" onclick={() => (folded[0] = !folded[0])} title={info?.root}><span class="twisty">{folded[0] ? '▸' : '▾'}</span>{info?.name}</button>
+          {#if !folded[0]}
+            <Tree path="" all={session.all} {active} marked={ctx?.entry?.path ?? null} onopen={(p) => open(p)} oncontext={showContext} />
+          {/if}
+          {#each roots as r (r.id)}
+            <button class="root-head" onclick={() => (folded[r.id] = !folded[r.id])} oncontextmenu={(e) => showContext(e, { name: r.name, path: `@${r.id}`, dir: true })} class:marked={ctx?.entry?.path === `@${r.id}`} title={r.path}>
+              <span class="twisty">{folded[r.id] ? '▸' : '▾'}</span>{r.name}
+            </button>
+            {#if !folded[r.id]}
+              <Tree path={`@${r.id}`} all={session.all} {active} marked={ctx?.entry?.path ?? null} onopen={(p) => open(p)} oncontext={showContext} />
+            {/if}
+          {/each}
         {/if}
       {:else if sidebar === 'search'}
         <!-- kept below, so results survive switching tabs -->
