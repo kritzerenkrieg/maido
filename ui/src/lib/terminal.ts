@@ -46,6 +46,9 @@ export class Session {
       fontSize: 13,
       theme: colors(),
       allowProposedApi: false,
+      // Hyperlinks a program writes itself (OSC 8, as Claude Code does): xterm's
+      // own handler would call window.open, which does nothing here.
+      linkHandler: { activate: (e, uri) => (e.ctrlKey || e.metaKey) && opts.onurl(uri), allowNonHttpProtocols: false },
     })
     this.term.loadAddon(this.fit)
     this.term.onTitleChange(opts.ontitle)
