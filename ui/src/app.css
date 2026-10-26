@@ -1359,3 +1359,45 @@ button {
   outline: 1px solid var(--accent);
   outline-offset: -1px;
 }
+
+/* A menu that opens to the side of its item. */
+.menu-sub-wrap {
+  position: relative;
+}
+.menu-sub {
+  display: none;
+  top: -5px;
+  left: calc(100% - 4px);
+}
+.menu-sub-wrap:hover > .menu-sub,
+.menu-sub-wrap:focus-within > .menu-sub {
+  display: block;
+}
+.menu-sub-wrap:hover > .menu-item:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.menu-item .chev {
+  color: var(--muted);
+}
+
+/* A path in a menu: the folders above the target shrink to "…" first. */
+.menu-path {
+  display: flex;
+  min-width: 0;
+}
+.menu-path .head {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--muted);
+}
+.menu-path .tail {
+  flex: none;
+}
+.menu-sub {
+  max-width: min(380px, 60vw);
+}
+
+.menu-item {
+  min-width: 0;
+}

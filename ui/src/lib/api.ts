@@ -79,6 +79,8 @@ export interface Settings {
   /** Look for a new version at most once a day (M3), and when it last did (ms). */
   checkUpdates: boolean
   updateCheckedAt: number
+  /** Folders opened before, newest first (File > recent). */
+  recentFolders: string[]
 }
 
 /** A newer release: `install` when maido can update itself (an AppImage), else `url` is the package. */
@@ -172,7 +174,8 @@ export const api = {
   clipboardRead: () => invoke<string>('clipboard_read'),
   clipboardWrite: (text: string) => invoke<void>('clipboard_write', { text }),
   /** The system folder dialog; true when this window now shows another folder (reload the page). */
-  openFolder: () => invoke<boolean>('open_folder'),
+  /** Switch this window to a folder: the one at `path`, or one picked in the dialog. */
+  openFolder: (path?: string) => invoke<boolean>('open_folder', { path }),
   /** Add a folder beside the workspace's own (picked in a dialog when no `path`). */
   addRoot: (path?: string) => invoke<RootInfo | null>('add_root', { path }),
   removeRoot: (id: number) => invoke<void>('remove_root', { id }),

@@ -38,6 +38,7 @@
     docMargin: { top: 24, right: 64, bottom: 24, left: 64 },
     checkUpdates: true,
     updateCheckedAt: 0,
+    recentFolders: [],
   })
   /** Folders added beside the workspace's own, and which of them are folded in the Explorer (0 is the own one). */
   let roots = $state<RootInfo[]>([])
@@ -247,6 +248,7 @@
       { title: 'Open file…', key: 'Ctrl+O', run: () => void showPalette('') },
       { title: 'Open folder…', run: () => void openFolder() },
       { title: 'Add folder to workspace…', run: () => void addFolder() },
+      ...recents().map((f) => ({ title: `Open recent folder: ${baseName(f)}`, run: () => void openFolder(f) })),
       { title: 'New file…', key: 'Ctrl+N', run: () => void newItem(here(), false) },
       { title: 'New folder…', run: () => void newItem(here(), true) },
       !!f && { title: 'Find in document', key: 'Ctrl+F', run: findInDocument },
@@ -495,7 +497,7 @@
 
   // ---- Menus (N2) ----
 
-  type MenuItem = { label: string; key?: string; off?: boolean; run: () => void } | 'sep'
+  type MenuItem = { label: string; tail?: string; title?: string; key?: string; off?: boolean; run: () => void } | { label: string; off?: boolean; sub: MenuItem[] } | 'sep'
   type EditTarget = { kind: 'editor' } | { kind: 'field'; el: HTMLInputElement | HTMLTextAreaElement } | { kind: 'terminal' } | { kind: 'page' }
 
   let menu = $state<'file' | 'edit' | 'settings' | null>(null)
@@ -533,12 +535,12 @@
   }
 
   /** File > Open folder: this window switches to it (the page starts over). */
-  async function openFolder() {
+  async function openFolder(path?: string) {
     if (anyDirty) return say('Save or discard your edits first: the window switches folders.')
     clearTimeout(saveTimer)
     await api.saveSession(sessionSnapshot()).catch(() => {})
     try {
-      if (await api.openFolder()) {
+      if (await api.openFolder(path)) {
         ready = false
         location.reload()
       }
@@ -569,6 +571,13 @@
       say(`Not removed: ${e}`)
     }
   }
+
+  /** Folders opened before, other than this one. */
+  function recents(): string[] {
+    return settings.recentFolders.filter((f) => f !== info?.root).slice(0, 5)
+  }
+
+  const baseName = (path: string) => path.slice(path.replace(/\/+$/, '').lastIndexOf('/') + 1) || path
 
   /** Copy (or cut) the selection to the system clipboard. */
   async function copySelection(cut: boolean) {
@@ -626,6 +635,20 @@
     }
   }
 
+  /** A folder as its two parent folders and itself. The parents start with `…/` when more folders lie above them, or with `/` when they reach the root; when the menu is too narrow they shorten first, so the folder stays visible. */
+  function folderLabel(path: string): { label: string; tail: string } {
+    const parts = path.split('/').filter(Boolean)
+    const tail = parts.pop() ?? path
+    const parents = parts.slice(-2)
+    return { label: (parts.length > 2 ? '…/' : '/') + parents.join('/') + (parents.length ? '/' : ''), tail }
+  }
+
+  /** File > Open recent: a menu that opens to the side. */
+  function recentMenu(): MenuItem {
+    const list = recents()
+    return { label: 'Open recent', off: !list.length, sub: list.map((f): MenuItem => ({ ...folderLabel(f), title: f, run: () => void openFolder(f) })) }
+  }
+
   function fileMenu(): MenuItem[] {
     const f = activeFile
     return [
@@ -635,6 +658,7 @@
       { label: 'Open file…', key: 'Ctrl+O', run: () => void showPalette('') },
       { label: 'Open folder…', run: () => void openFolder() },
       { label: 'Add folder to workspace…', run: () => void addFolder() },
+      recentMenu(),
       'sep',
       { label: 'Save', key: 'Ctrl+S', off: !f || !dirty[f], run: () => f && void save(f) },
       { label: 'Save all', off: !anyDirty, run: () => void saveAll() },
@@ -908,6 +932,8 @@
       if (saved) session = { ...session, ...saved, scroll: saved.scroll ?? {} }
       const s = await api.loadSettings().catch(() => null)
       if (s) settings = { ...settings, ...s }
+      settings.recentFolders = [info.root, ...(settings.recentFolders ?? []).filter((f) => f !== info!.root)].slice(0, 10)
+      saveSettings()
       if (info.initial) open(info.initial)
       else if (!session.tabs.length) {
         const top = await api.listDir('', false).catch(() => [])
@@ -945,17 +971,29 @@
   {#each list as item, i (i)}
     {#if item === 'sep'}
       <hr />
+    {:else if 'sub' in item}
+      <div class="menu-sub-wrap">
+        <button class="menu-item" disabled={item.off} onmousedown={(e) => e.preventDefault()}>
+          <span>{item.label}</span><span class="chev" aria-hidden="true">▸</span>
+        </button>
+        <div class="menu-list menu-sub">{@render menuItems(item.sub, done)}</div>
+      </div>
     {:else}
       <button
         class="menu-item"
         disabled={item.off}
+        title={item.title}
         onmousedown={(e) => e.preventDefault()}
         onclick={() => {
           done()
           item.run()
         }}
       >
-        <span>{item.label}</span>{#if item.key}<kbd>{item.key}</kbd>{/if}
+        {#if item.tail}
+          <span class="menu-path"><span class="head">{item.label}</span><span class="tail">{item.tail}</span></span>
+        {:else}
+          <span>{item.label}</span>
+        {/if}{#if item.key}<kbd>{item.key}</kbd>{/if}
       </button>
     {/if}
   {/each}

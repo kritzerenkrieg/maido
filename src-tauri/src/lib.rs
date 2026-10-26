@@ -280,15 +280,24 @@ fn clipboard_write(app: AppHandle, text: String) -> Result<(), String> {
 /// this window (its terminals end; the page reloads on `true`). A folder open
 /// in another window is brought forward there instead.
 #[tauri::command]
-async fn open_folder(app: AppHandle, window: WebviewWindow, windows: State<'_, Windows>) -> Result<bool, String> {
+async fn open_folder(app: AppHandle, window: WebviewWindow, windows: State<'_, Windows>, path: Option<String>) -> Result<bool, String> {
     use tauri_plugin_dialog::DialogExt;
     let ws = windows.get(&window)?;
-    let (tx, rx) = tokio::sync::oneshot::channel();
-    window.dialog().file().set_parent(&window).set_title("Select folder").set_directory(&ws.root).pick_folder(move |path| {
-        let _ = tx.send(path);
-    });
-    let Some(path) = rx.await.map_err(|e| e.to_string())? else { return Ok(false) };
-    let root = path.into_path().map_err(|e| e.to_string())?.canonicalize().map_err(|e| e.to_string())?;
+    let path = match path {
+        Some(p) => PathBuf::from(p),
+        None => {
+            let (tx, rx) = tokio::sync::oneshot::channel();
+            window.dialog().file().set_parent(&window).set_title("Select folder").set_directory(&ws.root).pick_folder(move |path| {
+                let _ = tx.send(path);
+            });
+            let Some(path) = rx.await.map_err(|e| e.to_string())? else { return Ok(false) };
+            path.into_path().map_err(|e| e.to_string())?
+        }
+    };
+    let root = path.canonicalize().map_err(|e| format!("{}: {e}", path.display()))?;
+    if !root.is_dir() {
+        return Err(format!("{} is not a folder", root.display()));
+    }
     if root == ws.root {
         return Ok(false);
     }
