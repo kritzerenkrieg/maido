@@ -78,19 +78,19 @@ impl Workspace {
     }
 
     /// One folder's entries: folders first, then files, by name; `.gitignore`
-    /// respected, hidden files left out unless `all` is on (then everything
-    /// but `.git`).
+    /// respected, hidden files left out unless `all` is on (then everything,
+    /// ignored files and `.git` included).
     pub fn list_dir(&self, rel: &str, all: bool) -> Result<Vec<Entry>, String> {
         let dir = self.resolve(rel)?;
         let mut entries: Vec<Entry> = walker(&dir)
-            .hidden(!all)
+            .standard_filters(!all)
             .max_depth(Some(1))
             .build()
             .filter_map(Result::ok)
             .filter(|e| e.depth() == 1)
             .filter_map(|e| {
                 let dir = e.file_type()?.is_dir();
-                if (!dir && !all && !is_doc(e.path())) || e.file_name() == ".git" {
+                if !dir && !all && !is_doc(e.path()) {
                     return None;
                 }
                 Some(Entry { name: e.file_name().to_string_lossy().into(), path: self.relative(e.path())?, dir })
@@ -255,8 +255,8 @@ mod tests {
         let (dir, ws) = temp_workspace();
         let names = |rel: &str, all: bool| ws.list_dir(rel, all).unwrap().into_iter().map(|e| e.name).collect::<Vec<_>>();
         assert_eq!(names("", false), ["docs", "README.md"]);
-        // Hidden files show with "all files" (never `.git`); a plain tree leaves them out.
-        assert_eq!(names("", true), ["docs", ".env", ".gitignore", "notes.txt", "README.md"]);
+        // Hidden and ignored files, `.git` too, show with "all files"; a plain tree leaves them out.
+        assert_eq!(names("", true), [".git", "build", "docs", ".env", ".gitignore", "notes.txt", "README.md"]);
         assert_eq!(names("docs", false), ["sub", "a.md", "flow.mmd"]);
 
         assert_eq!(ws.resolve_link("docs/a.md", "sub/b.markdown#Top%20part"), Some(("docs/sub/b.markdown".into(), Some("Top part".into()))));

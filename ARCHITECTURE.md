@@ -111,7 +111,7 @@ Renderer: the DOM renderer by default, with a setting ("GPU terminals") for WebG
 
 ## Workspace
 
-Path-based, like VS Code. The file tree respects `.gitignore` (`ignore` crate) and shows `.md`, `.markdown`, `.mmd` and `.mermaid` by default, with a toggle for all files, which also shows hidden ones (never `.git`). Hidden files stay out of quick open, search and the file watcher, so the tree does not refresh by itself when one changes. Fuzzy quick open; full-text search (ripgrep crates). Relative links between documents open in maido; `#heading` links scroll. Open tabs and scroll positions are remembered per workspace. A second `maido <path>` while maido runs opens a window in the same process. (E1)
+Path-based, like VS Code. The file tree respects `.gitignore` (`ignore` crate) and shows `.md`, `.markdown`, `.mmd` and `.mermaid` by default, with a toggle for all files, which also shows hidden and ignored ones, `.git` included. Hidden files stay out of quick open, search and the file watcher, so the tree does not refresh by itself when one changes. Fuzzy quick open; full-text search (ripgrep crates). Relative links between documents open in maido; `#heading` links scroll. Open tabs and scroll positions are remembered per workspace. A second `maido <path>` while maido runs opens a window in the same process. (E1)
 
 **Files changed on disk** (`notify`, short debounce) reload through block diffing: only changed blocks update, the scroll position stays, and changed blocks are briefly highlighted so you see what an agent just did. New and deleted files update the tree live. (E2)
 
