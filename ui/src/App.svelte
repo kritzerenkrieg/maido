@@ -576,10 +576,11 @@
     }
   }
 
+  /** Close an added folder: at once, unless open files in it have unsaved edits. */
   async function removeFolder(r: RootInfo) {
     const path = `@${r.id}`
-    if (unsavedUnder([path])) return
-    if ((await ask(`Remove ${r.name} from the workspace? Nothing is deleted.`, 'Remove')) === null) return
+    const unsaved = tabsUnder(path).filter((t) => dirty[t])
+    if (unsaved.length && (await ask(`${unsaved.map(name).join(', ')} in ${r.name} ${unsaved.length === 1 ? 'has' : 'have'} unsaved edits. Close the folder and discard them?`, 'Discard and close')) === null) return
     try {
       await api.removeRoot(r.id)
       for (const t of tabsUnder(path)) forget(t)
@@ -713,6 +714,8 @@
 
   function showContext(e: MouseEvent, entry: Entry | null) {
     e.preventDefault()
+    // Else the sidebar's own handler runs next and swaps in the empty-space menu.
+    e.stopPropagation()
     menu = null
     ctx = { x: e.clientX, y: e.clientY, entry }
   }
@@ -814,8 +817,19 @@
         { label: 'New folder…', run: () => void newItem(dir, true) },
         { label: 'Paste', off: !clip, run: () => void pasteFiles(dir) },
         'sep',
-        { label: 'Remove from workspace', run: () => void removeFolder(root) },
+        { label: 'Close folder', title: 'Remove it from this workspace; nothing is deleted', run: () => void removeFolder(root) },
         { label: 'Copy path', run: () => void api.clipboardWrite(root.path).catch((e) => say(`Not copied: ${e}`)) },
+      ]
+    }
+    if (entry?.path === '' && entry.dir) {
+      return [
+        { label: 'New file…', run: () => void newItem('', false) },
+        { label: 'New folder…', run: () => void newItem('', true) },
+        { label: 'Paste', off: !clip, run: () => void pasteFiles('') },
+        'sep',
+        { label: 'Add folder to workspace…', run: () => void addFolder() },
+        { label: 'Open another folder…', run: () => void openFolder() },
+        { label: 'Copy path', run: () => void api.clipboardWrite(info?.root ?? '').catch((e) => say(`Not copied: ${e}`)) },
       ]
     }
     const items: MenuItem[] = [{ label: 'New file…', run: () => void newItem(dir, false) }, { label: 'New folder…', run: () => void newItem(dir, true) }, 'sep']
@@ -1149,7 +1163,9 @@
     <div class="sidebar-body" role="presentation" oncontextmenu={(e) => sidebar === 'files' && showContext(e, null)}>
       {#if sidebar === 'files'}
         {#if ready}
-          <button class="root-head" onclick={() => (folded[0] = !folded[0])} title={info?.root}><span class="twisty">{folded[0] ? '▸' : '▾'}</span>{info?.name}</button>
+          <button class="root-head" onclick={() => (folded[0] = !folded[0])} oncontextmenu={(e) => showContext(e, { name: info?.name ?? '', path: '', dir: true })} class:marked={ctx?.entry?.path === ''} title={info?.root}>
+            <span class="twisty">{folded[0] ? '▸' : '▾'}</span>{info?.name}
+          </button>
           {#if !folded[0]}
             <Tree path="" all={session.all} {active} marked={ctx?.entry?.path ?? null} onopen={(p) => open(p)} oncontext={showContext} />
           {/if}
