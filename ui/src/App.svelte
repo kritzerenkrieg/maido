@@ -418,6 +418,12 @@
 
   // ---- Diffs ----
 
+  /** The top bar's Diff: a file with unsaved edits against itself as saved, else a new diff from this file. */
+  function diffButton() {
+    if (activeFile && dirty[activeFile]) showConflictDiff(activeFile)
+    else void openDiff({ mode: 'file', path: activeFile ?? '', text: '' }, { mode: 'file', path: '', text: '' })
+  }
+
   async function openDiff(left: DiffSpec, right: DiffSpec) {
     Diff ??= (await import('./DiffView.svelte')).default
     const id = `diff:${++diffCount}`
@@ -1177,7 +1183,7 @@
       <span class="tabs-gap"></span>
     </nav>
     <div class="topbar-tools">
-      <button class="tabs-btn" onclick={() => openDiff({ mode: 'file', path: activeFile ?? '', text: '' }, { mode: 'file', path: '', text: '' })} title={activeFile ? 'Compare this file with another file or text' : 'Compare two files or texts'}>Diff</button>
+      <button class="tabs-btn" onclick={diffButton} title={activeFile && dirty[activeFile] ? 'Compare the saved file with your unsaved edits' : activeFile ? 'Compare this file with another file or text' : 'Compare two files or texts'}>Diff</button>
       <button class="tabs-btn" class:on={sidebar === 'git'} onclick={() => (sidebar === 'git' ? (sidebar = 'files') : void showGit())} title="Changes, commit and sync">Git</button>
       <button class="tabs-btn" onclick={() => (termOpen ? (termOpen = false) : void showTerminal())} title="Terminal (Ctrl+`)">Terminal</button>
       {#if activeFile}
