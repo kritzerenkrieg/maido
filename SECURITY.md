@@ -30,6 +30,10 @@ Document content can never start a terminal session or type into one. The "send 
 
 As built: the button is added by maido after sanitizing, so a document cannot make one or click one. It pastes only into a session you already opened and never starts one. Multi-line text is pasted only as a bracketed paste, which the shell keeps as one edit instead of running line by line; without bracketed paste nothing is pasted. A session takes input only from the window that opened it. Links in terminal output open only workspace files (checked in Rust) or http(s) URLs, and only on Ctrl+click.
 
+## Git
+
+The Git panel runs the system's `git` only in the workspace folder and only when you open the panel or press a button; nothing a document contains reaches its arguments (the paths it compares come from `git status`, and one that leaves the folder is refused). Reading the status never runs the repository's `core.fsmonitor` command (forced off, since `git status` runs on its own when the panel is open). Commit and sync run the repository's hooks as `git` would in a terminal; hooks live in `.git/hooks`, which a clone never brings, so they are only what you or your tools put there. git never prompts: passwords and passphrases are left to the terminal and to your credential helper. Pushing sends your commits to the remote you configured, and only when you press Sync.
+
 ## Updates
 
 maido's only network request of its own is the update check (Phase 5, M3): at most once a day, and only in release builds that name an update server, it fetches one JSON file over HTTPS; the request carries no data about you or your documents. A setting turns it off. Every update is signed: maido has the release key's public half built in and refuses a package whose signature does not match, so a compromised server or download cannot install anything. The AppImage replaces only itself, as you. maido never asks for a root password: for a `.deb` it only opens the new package's download link, and installing it is up to you.

@@ -1,6 +1,6 @@
 # maido
 
-A path-based Markdown and Mermaid reader and editor (Tauri 2, Svelte 5 + TypeScript, `comrak`, `syntect`, CodeMirror 6, `portable-pty` + xterm.js) with a terminal beside the docs. Reader first, editor second. No language servers, git UI, plugins, WYSIWYG or sync. No agent detection: an agent is just a program in a terminal. Design: `ARCHITECTURE.md`. Threat model: `SECURITY.md`.
+A path-based Markdown and Mermaid reader and editor (Tauri 2, Svelte 5 + TypeScript, `comrak`, `syntect`, CodeMirror 6, `portable-pty` + xterm.js) with a terminal beside the docs. Reader first, editor second. No language servers, plugins or WYSIWYG. Git is one simple panel (changes, commit, sync) over the system's `git`; no history, branches or staging UI. No agent detection: an agent is just a program in a terminal. Design: `ARCHITECTURE.md`. Threat model: `SECURITY.md`.
 
 ## Git
 

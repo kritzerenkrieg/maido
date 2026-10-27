@@ -461,6 +461,81 @@ button {
   background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
+/* The Git panel (G1) */
+.git-branch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 6px;
+}
+.git-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.git-count {
+  flex: 1;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.git-refresh {
+  color: var(--muted);
+  padding: 0 4px;
+}
+.git-actions {
+  display: flex;
+  gap: 6px;
+  padding: 0 8px 8px;
+}
+.git-actions button {
+  flex: 1;
+  padding: 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+.git-actions .primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.git-actions button:disabled {
+  opacity: 0.5;
+}
+.git-error {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.git-change {
+  display: flex;
+}
+.git-change .search-file {
+  flex: 1;
+  min-width: 0;
+  font-weight: normal;
+}
+.git-kind {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  color: #d29922;
+}
+.git-kind.A {
+  color: #22a06b;
+}
+.git-kind.D,
+.git-kind.U {
+  color: #e5484d;
+}
+.git-diff {
+  padding: 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.git-diff:hover {
+  color: var(--accent);
+}
+
 /* Quick open and commands (L6) */
 .palette-back {
   position: fixed;
@@ -981,7 +1056,8 @@ button {
   color: var(--muted);
   flex-shrink: 0;
 }
-.tabs-btn:hover {
+.tabs-btn:hover,
+.tabs-btn.on {
   color: var(--fg);
 }
 .work {

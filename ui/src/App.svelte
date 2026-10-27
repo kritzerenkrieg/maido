@@ -44,7 +44,7 @@
   let roots = $state<RootInfo[]>([])
   let folded = $state<Record<number, boolean>>({})
   let ready = $state(false)
-  let sidebar = $state<'files' | 'outline' | 'search'>('files')
+  let sidebar = $state<'files' | 'outline' | 'search' | 'git'>('files')
   let versions = $state<Record<string, number>>({})
   let deleted = $state<Record<string, boolean>>({})
   let outline = $state<OutlineItem[]>([])
@@ -225,6 +225,31 @@
     else doc?.find()
   }
 
+  let GitPanel = $state<typeof import('./Git.svelte').default | null>(null)
+  let gitPanel = $state<{ refresh: () => Promise<void>; changed: () => void } | null>(null)
+
+  async function showGit() {
+    GitPanel ??= (await import('./Git.svelte')).default
+    sidebar = 'git'
+  }
+
+  /** A file against its last commit, in a diff tab. */
+  async function compareWithHead(path: string, deleted: boolean) {
+    try {
+      const head = await api.gitHeadText(path)
+      const now: DiffSpec = deleted ? { mode: 'text', path: '', text: '', label: `${path} (deleted)` } : { mode: 'file', path, text: '' }
+      await openDiff({ mode: 'text', path: '', text: head, label: `${path} (last commit)` }, now)
+    } catch (e) {
+      say(`Cannot compare: ${e}`)
+    }
+  }
+
+  /** Commits take files as saved: unsaved edits would be left out. */
+  function savedForGit() {
+    if (anyDirty) say('Save your edits first: a commit takes files as they are on disk.')
+    return !anyDirty
+  }
+
   async function showSearch() {
     Find ??= (await import('./Search.svelte')).default
     sidebar = 'search'
@@ -278,6 +303,7 @@
       { title: 'Font: serif', run: () => setSetting('docFont', 'serif') },
       { title: 'Outline', run: () => (sidebar = 'outline') },
       { title: 'Explorer', run: () => (sidebar = 'files') },
+      { title: 'Git: changes, commit and sync', run: () => void showGit() },
     ]
     return list.filter((c): c is Command => !!c)
   }
@@ -446,6 +472,7 @@
   }
 
   function onchange(c: FsChange) {
+    gitPanel?.changed()
     if (c.tree) refreshFolder(parentOf(c.path))
     if (c.kind === 'remove') {
       if (session.tabs.includes(c.path)) deleted[c.path] = true
@@ -1151,6 +1178,7 @@
     </nav>
     <div class="topbar-tools">
       <button class="tabs-btn" onclick={() => openDiff({ mode: 'file', path: activeFile ?? '', text: '' }, { mode: 'file', path: '', text: '' })} title={activeFile ? 'Compare this file with another file or text' : 'Compare two files or texts'}>Diff</button>
+      <button class="tabs-btn" class:on={sidebar === 'git'} onclick={() => (sidebar === 'git' ? (sidebar = 'files') : void showGit())} title="Changes, commit and sync">Git</button>
       <button class="tabs-btn" onclick={() => (termOpen ? (termOpen = false) : void showTerminal())} title="Terminal (Ctrl+`)">Terminal</button>
       {#if activeFile}
         <span class="tools-sep" aria-hidden="true">|</span>
@@ -1191,6 +1219,10 @@
         {/if}
       {:else if sidebar === 'search'}
         <!-- kept below, so results survive switching tabs -->
+      {:else if sidebar === 'git'}
+        {#if GitPanel}
+          <GitPanel bind:this={gitPanel} onopen={(p) => open(p)} oncompare={(p, d) => void compareWithHead(p, d)} cansave={savedForGit} />
+        {/if}
       {:else if outline.length}
         <ul class="outline">
           {#each outline as h (h.id)}

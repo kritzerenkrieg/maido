@@ -183,6 +183,24 @@ export const api = {
   /** Add a folder beside the workspace's own (picked in a dialog when no `path`). */
   addRoot: (path?: string) => invoke<RootInfo | null>('add_root', { path }),
   removeRoot: (id: number) => invoke<void>('remove_root', { id }),
+  gitStatus: () => invoke<GitStatus>('git_status'),
+  gitCommit: (message: string) => invoke<boolean>('git_commit', { message }),
+  /** Commit, pull (rebasing) and push; resolves with what was done. */
+  gitSync: (message: string) => invoke<string>('git_sync', { message }),
+  gitInit: () => invoke<void>('git_init'),
+  /** A file's text at the last commit ('' when it is new). */
+  gitHeadText: (path: string) => invoke<string>('git_head_text', { path }),
+}
+
+export interface GitStatus {
+  repo: boolean
+  branch: string
+  upstream: string | null
+  ahead: number
+  behind: number
+  remote: boolean
+  /** `code` is `git status --porcelain`'s two letters (staged, unstaged; '??' untracked). */
+  changes: { path: string; code: string }[]
 }
 
 export const DOC_EXTENSIONS = ['md', 'markdown', 'mmd', 'mermaid', 'tex', 'latex']

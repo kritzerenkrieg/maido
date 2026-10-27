@@ -2,6 +2,7 @@ mod diff;
 mod doc;
 mod files;
 mod find;
+mod git;
 mod highlight;
 mod latex;
 mod mermaid;
@@ -386,6 +387,38 @@ fn remove_root(window: WebviewWindow, windows: State<Windows>, sessions: State<S
     ws.remove_root(id);
     ws.docs.lock().unwrap().retain(|k, _| !k.starts_with(&format!("@{id}/")));
     save_roots(&sessions, &ws)
+}
+
+// ---- Git (G1): the workspace's own folder ----
+
+#[tauri::command]
+async fn git_status(window: WebviewWindow, windows: State<'_, Windows>) -> Result<git::Status, String> {
+    let ws = windows.get(&window)?;
+    tauri::async_runtime::spawn_blocking(move || git::status(&ws.root)).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn git_commit(window: WebviewWindow, windows: State<'_, Windows>, message: String) -> Result<bool, String> {
+    let ws = windows.get(&window)?;
+    tauri::async_runtime::spawn_blocking(move || git::commit(&ws.root, &message)).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn git_sync(window: WebviewWindow, windows: State<'_, Windows>, message: String) -> Result<String, String> {
+    let ws = windows.get(&window)?;
+    tauri::async_runtime::spawn_blocking(move || git::sync(&ws.root, &message)).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn git_init(window: WebviewWindow, windows: State<'_, Windows>) -> Result<(), String> {
+    let ws = windows.get(&window)?;
+    git::init(&ws.root)
+}
+
+#[tauri::command]
+async fn git_head_text(window: WebviewWindow, windows: State<'_, Windows>, path: String) -> Result<String, String> {
+    let ws = windows.get(&window)?;
+    git::head_text(&ws.root, &path)
 }
 
 /// One side of the diff window: a workspace file or pasted text (E5).
@@ -798,6 +831,11 @@ pub fn run() {
             open_folder,
             add_root,
             remove_root,
+            git_status,
+            git_commit,
+            git_sync,
+            git_init,
+            git_head_text,
             update::check_update,
             update::install_update,
         ])
