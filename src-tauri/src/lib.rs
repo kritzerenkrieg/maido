@@ -133,8 +133,6 @@ enum DocView {
     Binary,
 }
 
-const IMAGE_EXTENSIONS: [&str; 9] = ["png", "jpg", "jpeg", "webp", "gif", "bmp", "avif", "ico", "svg"];
-
 fn extension(path: &str) -> String {
     Path::new(path).extension().map(|e| e.to_string_lossy().to_ascii_lowercase()).unwrap_or_default()
 }
@@ -202,7 +200,7 @@ fn view(ws: &Workspace, path: &str, full: &Path, mut text: String, have: Vec<Str
 async fn load_document(window: WebviewWindow, windows: State<'_, Windows>, path: String, have: Vec<String>) -> Result<DocView, String> {
     let ws = windows.get(&window)?;
     let ext = extension(&path);
-    if IMAGE_EXTENSIONS.contains(&ext.as_str()) {
+    if workspace::IMAGE_EXTENSIONS.contains(&ext.as_str()) {
         return Ok(DocView::Image { path: ws.resolve(&path)?.to_string_lossy().into_owned() });
     }
     if ext == "pdf" {

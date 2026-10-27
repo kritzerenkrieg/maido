@@ -16,8 +16,10 @@ use tauri::{AppHandle, Emitter};
 
 use crate::doc::{Document, normalize, percent_decode};
 
-/// Shown in the tree unless "all files" is on.
+/// Documents: shown first in quick open.
 pub const DOC_EXTENSIONS: [&str; 6] = ["md", "markdown", "mmd", "mermaid", "tex", "latex"];
+/// Opened as a picture.
+pub const IMAGE_EXTENSIONS: [&str; 9] = ["png", "jpg", "jpeg", "webp", "gif", "bmp", "avif", "ico", "svg"];
 
 /// A folder added beside the workspace's own. Its paths read `@<id>/…`; the
 /// workspace folder's paths have no prefix.
@@ -169,7 +171,7 @@ impl Workspace {
             .filter(|e| e.depth() == 1)
             .filter_map(|e| {
                 let dir = e.file_type()?.is_dir();
-                if !dir && !all && !is_doc(e.path()) {
+                if !dir && !all && !is_readable(e.path()) {
                     return None;
                 }
                 Some(Entry { name: e.file_name().to_string_lossy().into(), path: self.relative(e.path())?, dir })
@@ -270,6 +272,17 @@ pub fn is_doc(path: &Path) -> bool {
     path.extension().and_then(|e| e.to_str()).is_some_and(|e| DOC_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str()))
 }
 
+/// Documents, pictures, PDFs and source files: what maido shows rendered or
+/// highlighted, so the tree lists them even when "all files" is off.
+pub fn is_readable(path: &Path) -> bool {
+    is_doc(path)
+        || crate::highlight::language(path).is_some()
+        || path.extension().and_then(|e| e.to_str()).is_some_and(|e| {
+            let e = e.to_ascii_lowercase();
+            e == "pdf" || IMAGE_EXTENSIONS.contains(&e.as_str())
+        })
+}
+
 /// `maido <path>`: a folder opens as the workspace; a file opens with its
 /// folder as the workspace; nothing means the current folder.
 pub fn target(arg: Option<&str>, cwd: &Path) -> Result<(PathBuf, Option<String>), String> {
@@ -326,7 +339,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(dir.join("docs/sub")).unwrap();
         std::fs::create_dir_all(dir.join("build")).unwrap();
-        for f in ["README.md", "docs/a.md", "docs/sub/b.markdown", "docs/flow.mmd", "notes.txt", "build/out.md"] {
+        for f in ["README.md", "docs/a.md", "docs/sub/b.markdown", "docs/flow.mmd", "docs/logo.PNG", "docs/paper.pdf", "docs/run.py", "docs/data.bin", "notes.txt", "build/out.md"] {
             std::fs::write(dir.join(f), "x").unwrap();
         }
         std::fs::write(dir.join(".gitignore"), "build/\n").unwrap();
@@ -343,7 +356,9 @@ mod tests {
         assert_eq!(names("", false), ["docs", "README.md"]);
         // Hidden and ignored files, `.git` too, show with "all files"; a plain tree leaves them out.
         assert_eq!(names("", true), [".git", "build", "docs", ".env", ".gitignore", "notes.txt", "README.md"]);
-        assert_eq!(names("docs", false), ["sub", "a.md", "flow.mmd"]);
+        // Pictures, PDFs and source files show too; other files only with "all files".
+        assert_eq!(names("docs", false), ["sub", "a.md", "flow.mmd", "logo.PNG", "paper.pdf", "run.py"]);
+        assert_eq!(names("docs", true), ["sub", "a.md", "data.bin", "flow.mmd", "logo.PNG", "paper.pdf", "run.py"]);
 
         assert_eq!(ws.resolve_link("docs/a.md", "sub/b.markdown#Top%20part"), Some(("docs/sub/b.markdown".into(), Some("Top part".into()))));
         assert_eq!(ws.resolve_link("docs/a.md", "../README.md"), Some(("README.md".into(), None)));
