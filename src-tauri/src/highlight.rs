@@ -107,16 +107,22 @@ pub fn highlight_file(token: &str, code: &str) -> Option<String> {
     render(token, code)
 }
 
-/// Stylesheet for the `hl-` classes: a light theme, and a dark one when the
-/// theme setting is Dark, or System with a dark desktop (L4).
+/// Stylesheet for the `hl-` classes: a light theme when the theme setting is
+/// Light, or System with a light desktop, and a dark one when it is Dark, or
+/// System with a dark desktop (L4). Each applies only in its own mode: the
+/// light theme colours scopes the dark one leaves alone (JSON keys), which
+/// would stay dark on dark. Printed code is always light.
 pub fn css() -> String {
     let themes = ThemeSet::load_defaults();
     let light = css_for_theme_with_class_style(&themes.themes["InspiredGitHub"], STYLE).unwrap_or_default();
     let dark = css_for_theme_with_class_style(&themes.themes["base16-ocean.dark"], STYLE).unwrap_or_default();
-    let system = scope(&dark, ":root:not([data-theme=\"light\"])");
-    let chosen = scope(&dark, ":root[data-theme=\"dark\"]");
-    // Screen only: printed code is always light.
-    format!("{light}\n@media screen and (prefers-color-scheme: dark) {{\n{system}\n}}\n@media screen {{\n{chosen}\n}}\n")
+    let light_system = scope(&light, ":root:not([data-theme=\"dark\"])");
+    let light_chosen = scope(&light, ":root[data-theme=\"light\"]");
+    let dark_system = scope(&dark, ":root:not([data-theme=\"light\"])");
+    let dark_chosen = scope(&dark, ":root[data-theme=\"dark\"]");
+    format!(
+        "@media print {{\n{light}\n}}\n@media screen and (prefers-color-scheme: light) {{\n{light_system}\n}}\n@media screen and (prefers-color-scheme: dark) {{\n{dark_system}\n}}\n@media screen {{\n{light_chosen}\n{dark_chosen}\n}}\n"
+    )
 }
 
 /// Put `prefix` before every selector of every rule in `css` (one rule head per line).
@@ -163,10 +169,12 @@ mod tests {
     #[test]
     fn dark_rules_scoped() {
         let css = super::css();
-        let (light, rest) = css.split_once("@media screen").unwrap();
-        assert!(light.contains(".hl-code {") && !light.contains(":root"));
-        assert!(rest.contains(":root:not([data-theme=\"light\"]) .hl-code {"), "{rest}");
-        assert!(rest.contains(":root[data-theme=\"dark\"] .hl-code {"), "{rest}");
-        assert!(!rest.lines().any(|l| l.starts_with(".hl-")), "{rest}");
+        let (print, screen) = css.split_once("@media screen").unwrap();
+        assert!(print.starts_with("@media print") && print.contains(".hl-code {") && !print.contains(":root"));
+        for scoped in [":root:not([data-theme=\"dark\"]) .hl-code {", ":root[data-theme=\"light\"] .hl-code {", ":root:not([data-theme=\"light\"]) .hl-code {", ":root[data-theme=\"dark\"] .hl-code {"] {
+            assert!(screen.contains(scoped), "{scoped}");
+        }
+        // No rule reaches the screen unscoped, so neither theme leaks into the other's mode.
+        assert!(!screen.lines().any(|l| l.starts_with(".hl-")), "{screen}");
     }
 }
