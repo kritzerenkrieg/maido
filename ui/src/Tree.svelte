@@ -3,7 +3,7 @@
   // when the watcher reports a change inside it (E1, E2). Right-click opens
   // the Explorer's file menu (N4).
   import { onDestroy } from 'svelte'
-  import { api, type Entry } from './lib/api'
+  import { api, isCode, type Entry } from './lib/api'
   import { treeEvents } from './lib/tree'
   import Tree from './Tree.svelte'
 
@@ -51,16 +51,19 @@
     treeEvents.removeEventListener('expand', expand)
   })
 
-  /** The icon of a file: Markdown and Mermaid have their own, everything else a plain file. */
-  function icon(name: string): 'md' | 'mmd' | 'tex' | 'img' | 'pdf' | 'file' {
+  /** The icon of a file: documents, pictures, PDFs and source files have their own, everything else a plain file. */
+  function icon(name: string): Kind {
     const ext = name.slice(name.lastIndexOf('.') + 1).toLowerCase()
     if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'avif', 'ico', 'svg'].includes(ext)) return 'img'
     if (ext === 'pdf') return 'pdf'
     if (ext === 'md' || ext === 'markdown') return 'md'
     if (ext === 'mmd' || ext === 'mermaid') return 'mmd'
     if (ext === 'tex' || ext === 'latex') return 'tex'
+    if (isCode(name)) return 'code'
     return 'file'
   }
+
+  type Kind = 'md' | 'mmd' | 'tex' | 'img' | 'pdf' | 'code' | 'file'
 
   function context(ev: MouseEvent, e: Entry) {
     ev.preventDefault()
@@ -91,7 +94,7 @@
   {/each}
 </ul>
 
-{#snippet fileIcon(kind: 'md' | 'mmd' | 'tex' | 'img' | 'pdf' | 'file')}
+{#snippet fileIcon(kind: Kind)}
   <svg class="ficon {kind}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
     {#if kind === 'md'}
       <rect x="1" y="3" width="14" height="10" rx="2" />
@@ -112,6 +115,8 @@
       <path d="M3.5 1.8h5.6l3.4 3.4v9H3.5z" />
       <path d="M9 1.8v3.6h3.5" />
       <rect x="5.2" y="9" width="5.6" height="2.8" rx="0.6" fill="currentColor" stroke="none" />
+    {:else if kind === 'code'}
+      <path d="M5.5 4.5L2 8l3.5 3.5M10.5 4.5L14 8l-3.5 3.5M9 3.5l-2 9" />
     {:else}
       <path d="M3.5 1.8h5.6l3.4 3.4v9H3.5z" />
       <path d="M9 1.8v3.6h3.5M5.6 8.6h4.8M5.6 11h4.8" />

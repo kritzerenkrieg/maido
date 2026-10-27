@@ -3,7 +3,7 @@
 // loads with the first edit.
 import { defaultKeymap, history, historyKeymap, indentWithTab, redo, undo } from '@codemirror/commands'
 import { markdown } from '@codemirror/lang-markdown'
-import { HighlightStyle, StreamLanguage, syntaxHighlighting } from '@codemirror/language'
+import { HighlightStyle, StreamLanguage, type StreamParser, syntaxHighlighting } from '@codemirror/language'
 import { SearchQuery, closeSearchPanel, findNext, findPrevious, getSearchQuery, highlightSelectionMatches, openSearchPanel, replaceAll, replaceNext, search, searchKeymap, setSearchQuery } from '@codemirror/search'
 import { EditorState, type Extension } from '@codemirror/state'
 import { EditorView, type Panel, type ViewUpdate, drawSelection, highlightActiveLine, keymap, lineNumbers } from '@codemirror/view'
@@ -21,6 +21,8 @@ const style = HighlightStyle.define([
   { tag: t.keyword, color: 'var(--keyword)' },
   { tag: t.string, color: 'var(--string)' },
   { tag: t.operator, color: 'var(--muted)' },
+  { tag: [t.number, t.bool, t.atom], color: 'var(--string)' },
+  { tag: [t.typeName, t.definition(t.variableName)], color: 'var(--accent)' },
 ])
 
 // Mermaid has no CodeMirror grammar; this colours its keywords, arrows,
@@ -261,6 +263,59 @@ const theme = EditorView.theme({
   '.cm-find.cm-none .cm-count': { color: '#e5484d' },
 })
 
+// Source files: CodeMirror 5's modes, each loaded the first time a file in
+// its language is edited. PHP has none here and stays plain.
+const clike = () => import('@codemirror/legacy-modes/mode/clike')
+const js = () => import('@codemirror/legacy-modes/mode/javascript')
+const MODES: Record<string, () => Promise<StreamParser<unknown>>> = {
+  rs: () => import('@codemirror/legacy-modes/mode/rust').then((m) => m.rust),
+  py: () => import('@codemirror/legacy-modes/mode/python').then((m) => m.python),
+  c: () => clike().then((m) => m.c),
+  cpp: () => clike().then((m) => m.cpp),
+  cs: () => clike().then((m) => m.csharp),
+  java: () => clike().then((m) => m.java),
+  kt: () => clike().then((m) => m.kotlin),
+  scala: () => clike().then((m) => m.scala),
+  m: () => clike().then((m) => m.objectiveC),
+  go: () => import('@codemirror/legacy-modes/mode/go').then((m) => m.go),
+  js: () => js().then((m) => m.javascript),
+  ts: () => js().then((m) => m.typescript),
+  json: () => js().then((m) => m.json),
+  sh: () => import('@codemirror/legacy-modes/mode/shell').then((m) => m.shell),
+  rb: () => import('@codemirror/legacy-modes/mode/ruby').then((m) => m.ruby),
+  lua: () => import('@codemirror/legacy-modes/mode/lua').then((m) => m.lua),
+  pl: () => import('@codemirror/legacy-modes/mode/perl').then((m) => m.perl),
+  r: () => import('@codemirror/legacy-modes/mode/r').then((m) => m.r),
+  hs: () => import('@codemirror/legacy-modes/mode/haskell').then((m) => m.haskell),
+  ml: () => import('@codemirror/legacy-modes/mode/mllike').then((m) => m.oCaml),
+  erl: () => import('@codemirror/legacy-modes/mode/erlang').then((m) => m.erlang),
+  clj: () => import('@codemirror/legacy-modes/mode/clojure').then((m) => m.clojure),
+  d: () => import('@codemirror/legacy-modes/mode/d').then((m) => m.d),
+  html: () => import('@codemirror/legacy-modes/mode/xml').then((m) => m.html),
+  xml: () => import('@codemirror/legacy-modes/mode/xml').then((m) => m.xml),
+  css: () => import('@codemirror/legacy-modes/mode/css').then((m) => m.css),
+  yaml: () => import('@codemirror/legacy-modes/mode/yaml').then((m) => m.yaml),
+  toml: () => import('@codemirror/legacy-modes/mode/toml').then((m) => m.toml),
+  sql: () => import('@codemirror/legacy-modes/mode/sql').then((m) => m.standardSQL),
+}
+/** Extensions that share another's mode. */
+const SAME: Record<string, string> = {
+  pyw: 'py', pyi: 'py', h: 'c', cc: 'cpp', cxx: 'cpp', hpp: 'cpp', hh: 'cpp', hxx: 'cpp', ino: 'cpp', kts: 'kt',
+  mjs: 'js', cjs: 'js', jsx: 'js', mts: 'ts', cts: 'ts', tsx: 'ts', jsonc: 'json', json5: 'json', bash: 'sh', zsh: 'sh',
+  pm: 'pl', mli: 'ml', htm: 'html', xsd: 'xml', xsl: 'xml', svg: 'xml', yml: 'yaml',
+}
+
+const loaded = new Map<string, Extension>()
+
+/** The CodeMirror language for a source file, or null for any other file. */
+export async function codeLanguage(path: string): Promise<Extension | null> {
+  const ext = path.split('.').pop()?.toLowerCase() ?? ''
+  const key = SAME[ext] ?? ext
+  if (!MODES[key]) return null
+  if (!loaded.has(key)) loaded.set(key, StreamLanguage.define(await MODES[key]()))
+  return loaded.get(key)!
+}
+
 export type Kind = 'markdown' | 'mermaid' | 'latex' | 'text'
 
 export function kindOf(path: string): Kind {
@@ -277,7 +332,7 @@ export interface Hooks {
 }
 
 /** A fresh editor state for `text`; kept per tab so undo survives switching tabs. */
-export function createState(text: string, kind: Kind, hooks: Hooks): EditorState {
+export function createState(text: string, kind: Kind, hooks: Hooks, code: Extension | null = null): EditorState {
   const extensions: Extension[] = [
     lineNumbers(),
     highlightActiveLine(),
@@ -302,6 +357,7 @@ export function createState(text: string, kind: Kind, hooks: Hooks): EditorState
   if (kind === 'markdown') extensions.push(markdown())
   if (kind === 'mermaid') extensions.push(mermaid)
   if (kind === 'latex') extensions.push(latex)
+  if (code) extensions.push(code)
   return EditorState.create({ doc: text, extensions })
 }
 

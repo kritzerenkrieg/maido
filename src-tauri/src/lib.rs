@@ -124,6 +124,8 @@ enum DocView {
     Markdown { blocks: Vec<BlockView>, outline: Vec<OutlineItem>, remote_images: usize },
     Mermaid { source: String },
     Text { text: String },
+    /// A source file in a language syntect knows, highlighted whole.
+    Code { lang: &'static str, html: String },
     /// A picture, shown from its file through the asset protocol.
     Image { path: String },
     /// Drawn by the frontend from the bytes `read_pdf` sends.
@@ -161,7 +163,10 @@ fn view(ws: &Workspace, path: &str, full: &Path, mut text: String, have: Vec<Str
         "mmd" | "mermaid" => return DocView::Mermaid { source: text },
         "md" | "markdown" => {}
         "tex" | "latex" => text = latex::to_markdown(&text),
-        _ => return DocView::Text { text },
+        _ => {
+            let code = highlight::language(full).and_then(|(token, lang)| Some(DocView::Code { lang, html: highlight::highlight_file(token, &text)? }));
+            return code.unwrap_or(DocView::Text { text });
+        }
     }
 
     let mut docs = ws.docs.lock().unwrap();

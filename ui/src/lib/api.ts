@@ -43,6 +43,7 @@ export type DocView =
   | { kind: 'markdown'; blocks: BlockView[]; outline: OutlineItem[]; remote_images: number }
   | { kind: 'mermaid'; source: string }
   | { kind: 'text'; text: string }
+  | { kind: 'code'; lang: string; html: string }
   | { kind: 'image'; path: string }
   | { kind: 'pdf' }
   | { kind: 'binary' }
@@ -188,4 +189,13 @@ export const DOC_EXTENSIONS = ['md', 'markdown', 'mmd', 'mermaid', 'tex', 'latex
 
 export function isDoc(path: string): boolean {
   return DOC_EXTENSIONS.includes(path.split('.').pop()?.toLowerCase() ?? '')
+}
+
+/** Source files maido highlights (as `highlight::language` in Rust). */
+const CODE_EXTENSIONS = new Set(
+  'rs py pyw pyi c h cpp cc cxx c++ hpp hh hxx h++ ino cs java go php json jsonc json5 js mjs cjs jsx ts mts cts tsx sh bash zsh rb lua pl pm r scala hs ml mli erl clj d m html htm css xml xsd xsl yaml yml sql bat cmd'.split(' '),
+)
+
+export function isCode(path: string): boolean {
+  return CODE_EXTENSIONS.has(path.split('.').pop()?.toLowerCase() ?? '') || /(^|\/)(GNU)?[Mm]akefile$/.test(path)
 }

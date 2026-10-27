@@ -580,6 +580,9 @@ button {
 .ficon.pdf {
   color: #e5484d;
 }
+.ficon.code {
+  color: #d29922;
+}
 .ficon.file {
   color: #8b95a7;
 }
@@ -954,6 +957,18 @@ button {
   font-size: 13px;
   white-space: pre;
   line-height: 1.5;
+}
+
+/* A source file's language, over its highlighted text. */
+.code-lang {
+  width: fit-content;
+  margin: 8px 12px -8px auto;
+  padding: 1px 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 11px;
 }
 
 /* Documents and terminals side by side or stacked (D1) */

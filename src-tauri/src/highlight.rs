@@ -2,6 +2,7 @@
 //! cached by a hash of language and code, so unchanged code is highlighted once.
 
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::{LazyLock, Mutex};
 
 use syntect::highlighting::ThemeSet;
@@ -48,6 +49,64 @@ fn render(lang: &str, code: &str) -> Option<String> {
     Some(generator.finalize())
 }
 
+/// Source files larger than this open as plain text: highlighting a whole
+/// file runs at a few MB a second.
+const MAX_CODE: usize = 1024 * 1024;
+
+/// The language of a source file, by its extension or name: syntect's token
+/// for it and the name shown. None for anything else (plain text).
+pub fn language(path: &Path) -> Option<(&'static str, &'static str)> {
+    let name = path.file_name()?.to_str()?;
+    match name {
+        "Makefile" | "makefile" | "GNUmakefile" => return Some(("make", "Makefile")),
+        "CMakeLists.txt" => return None,
+        _ => {}
+    }
+    let ext = path.extension()?.to_str()?.to_ascii_lowercase();
+    Some(match ext.as_str() {
+        "rs" => ("rs", "Rust"),
+        "py" | "pyw" | "pyi" => ("py", "Python"),
+        "c" | "h" => ("c", "C"),
+        "cpp" | "cc" | "cxx" | "c++" | "hpp" | "hh" | "hxx" | "h++" | "ino" => ("cpp", "C++"),
+        "cs" => ("cs", "C#"),
+        "java" => ("java", "Java"),
+        "go" => ("go", "Go"),
+        "php" => ("php", "PHP"),
+        "json" | "jsonc" | "json5" => ("json", "JSON"),
+        "js" | "mjs" | "cjs" | "jsx" => ("js", "JavaScript"),
+        // Not in syntect's default set; JavaScript's grammar is close enough.
+        "ts" | "mts" | "cts" | "tsx" => ("js", "TypeScript"),
+        "sh" | "bash" | "zsh" => ("sh", "Shell"),
+        "rb" => ("rb", "Ruby"),
+        "lua" => ("lua", "Lua"),
+        "pl" | "pm" => ("pl", "Perl"),
+        "r" => ("r", "R"),
+        "scala" => ("scala", "Scala"),
+        "hs" => ("hs", "Haskell"),
+        "ml" | "mli" => ("ml", "OCaml"),
+        "erl" => ("erl", "Erlang"),
+        "clj" => ("clj", "Clojure"),
+        "d" => ("d", "D"),
+        "m" => ("m", "Objective-C"),
+        "html" | "htm" => ("html", "HTML"),
+        "css" => ("css", "CSS"),
+        "xml" | "xsd" | "xsl" | "svg" => ("xml", "XML"),
+        "yaml" | "yml" => ("yaml", "YAML"),
+        "sql" => ("sql", "SQL"),
+        "bat" | "cmd" => ("bat", "Batch"),
+        _ => return None,
+    })
+}
+
+/// A whole source file as the inner HTML of `<pre>`, or None when it is too
+/// large or syntect fails on it. Not cached: files change.
+pub fn highlight_file(token: &str, code: &str) -> Option<String> {
+    if code.len() > MAX_CODE {
+        return None;
+    }
+    render(token, code)
+}
+
 /// Stylesheet for the `hl-` classes: a light theme, and a dark one when the
 /// theme setting is Dark, or System with a dark desktop (L4).
 pub fn css() -> String {
@@ -81,6 +140,24 @@ mod tests {
         assert!(html.contains("hl-") && html.contains("&lt;b&gt;") && !html.contains("<b>"), "{html}");
         assert!(super::highlight("no-such-language", "x").is_none());
         assert!(super::highlight("ts", "const x: number = 1\n").is_some());
+    }
+
+    #[test]
+    fn source_files() {
+        use std::path::Path;
+        for name in [
+            "a.rs", "a.py", "a.c", "a.h", "a.cpp", "a.hpp", "a.cs", "a.java", "a.go", "a.php", "a.json", "a.js", "a.ts", "a.sh", "a.rb", "a.lua", "a.pl", "a.r", "a.scala",
+            "a.hs", "a.ml", "a.erl", "a.clj", "a.d", "a.m", "a.html", "a.css", "a.xml", "a.yaml", "a.sql", "a.bat", "Makefile",
+        ] {
+            let (token, _) = super::language(Path::new(name)).unwrap_or_else(|| panic!("{name}"));
+            assert!(super::SYNTAXES.find_syntax_by_token(token).is_some(), "{name}: no syntax {token}");
+        }
+        assert_eq!(super::language(Path::new("src/Main.JAVA")), Some(("java", "Java")));
+        assert_eq!(super::language(Path::new("notes.txt")), None);
+        assert_eq!(super::language(Path::new("README")), None);
+        let html = super::highlight_file("py", "def f():\n    return '<x>'\n").unwrap();
+        assert!(html.contains("hl-") && html.contains("&lt;x&gt;"), "{html}");
+        assert!(super::highlight_file("py", &"x\n".repeat(600_000)).is_none());
     }
 
     #[test]

@@ -67,6 +67,8 @@
   // moment later (what the preview renders).
   let Ed = $state<typeof EditorT | null>(null)
   let editorLib: typeof import('./lib/editor') | null = null
+  /** Each edited source file's CodeMirror language, loaded before its editor opens. */
+  const codeLangs = new Map<string, import('@codemirror/state').Extension | null>()
   let editor = $state<ReturnType<typeof EditorT>>()
   const buffers = new Map<string, Buffer>()
   const latest = new Map<string, string>()
@@ -289,6 +291,7 @@
       Ed ??= comp.default
       let src: { text: string; hash: string }
       try {
+        codeLangs.set(path, await lib.codeLanguage(path).catch(() => null))
         src = await api.loadSource(path)
       } catch (e) {
         say(`Cannot edit: ${e}`)
@@ -302,7 +305,7 @@
 
   function newState(path: string, text: string) {
     const lib = editorLib!
-    return lib.createState(text, lib.kindOf(path), { onchange: (t) => edited(path, t), onsave: () => void save(path) })
+    return lib.createState(text, lib.kindOf(path), { onchange: (t) => edited(path, t), onsave: () => void save(path) }, codeLangs.get(path))
   }
 
   function edited(path: string, text: string) {
@@ -416,6 +419,7 @@
     else void api.closeDocument(path)
     buffers.delete(path)
     latest.delete(path)
+    codeLangs.delete(path)
     delete editing[path]
     delete dirty[path]
     delete preview[path]

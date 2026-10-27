@@ -306,6 +306,10 @@
     <MermaidPage source={view.source} {path} />
   {:else if view?.kind === 'text'}
     <pre class="raw">{view.text}</pre>
+  {:else if view?.kind === 'code'}
+    <div class="code-lang">{view.lang}</div>
+    <!-- syntect's spans around escaped text (H4) -->
+    <pre class="raw code">{@html view.html}</pre>
   {:else if view?.kind === 'image'}
     <div class="image-page"><img src="{convertFileSrc(view.path)}?v={version}" alt={path.slice(path.lastIndexOf('/') + 1)} /></div>
   {:else if view?.kind === 'pdf'}
