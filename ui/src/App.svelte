@@ -1030,6 +1030,17 @@
   {/each}
 {/snippet}
 
+{#snippet folderIcon(open: boolean)}
+  <svg class="root-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true">
+    {#if open}
+      <path d="M1.5 12.5v-9a1 1 0 0 1 1-1h3.2l1.6 1.8h5.2a1 1 0 0 1 1 1v1.4" />
+      <path d="M1.5 12.5l1.9-5.3a1 1 0 0 1 .9-.7h10.2a.6.6 0 0 1 .6.8l-1.8 4.8a1 1 0 0 1-.9.6H2.5a1 1 0 0 1-1-1z" />
+    {:else}
+      <path d="M1.5 4a1 1 0 0 1 1-1h3.2l1.6 1.8h6.2a1 1 0 0 1 1 1v6.7a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z" />
+    {/if}
+  </svg>
+{/snippet}
+
 {#snippet menuButton(id: 'file' | 'edit' | 'settings', label: string)}
   <button
     class="menu-btn"
@@ -1164,14 +1175,14 @@
       {#if sidebar === 'files'}
         {#if ready}
           <button class="root-head" onclick={() => (folded[0] = !folded[0])} oncontextmenu={(e) => showContext(e, { name: info?.name ?? '', path: '', dir: true })} class:marked={ctx?.entry?.path === ''} title={info?.root}>
-            <span class="twisty">{folded[0] ? '▸' : '▾'}</span>{info?.name}
+            {@render folderIcon(!folded[0])}{info?.name}
           </button>
           {#if !folded[0]}
             <Tree path="" all={session.all} {active} marked={ctx?.entry?.path ?? null} onopen={(p) => open(p)} oncontext={showContext} />
           {/if}
           {#each roots as r (r.id)}
             <button class="root-head" onclick={() => (folded[r.id] = !folded[r.id])} oncontextmenu={(e) => showContext(e, { name: r.name, path: `@${r.id}`, dir: true })} class:marked={ctx?.entry?.path === `@${r.id}`} title={r.path}>
-              <span class="twisty">{folded[r.id] ? '▸' : '▾'}</span>{r.name}
+              {@render folderIcon(!folded[r.id])}{r.name}
             </button>
             {#if !folded[r.id]}
               <Tree path={`@${r.id}`} all={session.all} {active} marked={ctx?.entry?.path ?? null} onopen={(p) => open(p)} oncontext={showContext} />

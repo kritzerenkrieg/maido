@@ -1415,6 +1415,14 @@ button {
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   border-left: 3px solid var(--accent);
 }
+.root-icon {
+  display: inline-block;
+  width: 1.15em;
+  height: 1.15em;
+  margin-right: 0.4em;
+  vertical-align: -0.22em;
+  color: var(--accent);
+}
 .root-head:hover {
   background: color-mix(in srgb, var(--accent) 24%, transparent);
 }
