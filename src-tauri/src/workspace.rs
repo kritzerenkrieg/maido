@@ -189,8 +189,14 @@ impl Workspace {
             None => (href, None),
         };
         let path = percent_decode(path.split('?').next().unwrap_or(""));
-        let base = if path.starts_with('/') { PathBuf::new() } else { Path::new(from).parent().unwrap_or(Path::new("")).to_path_buf() };
+        // A link in an added folder stays in that folder: `/` is its top, and
+        // `..` cannot climb out of it into the workspace's own folder.
+        let folder = from.starts_with('@').then(|| Path::new(from).components().next().map(|c| PathBuf::from(c.as_os_str()))).flatten().unwrap_or_default();
+        let base = if path.starts_with('/') { folder.clone() } else { Path::new(from).parent().unwrap_or(Path::new("")).to_path_buf() };
         let target = normalize(&base.join(path.trim_start_matches('/')));
+        if !target.starts_with(&folder) || (!folder.as_os_str().is_empty() && target == folder) {
+            return None;
+        }
         let full = self.resolve(&target.to_string_lossy()).ok()?;
         full.is_file().then(|| (self.relative(&full).unwrap_or_default(), anchor))
     }
@@ -399,6 +405,9 @@ mod tests {
         assert!(ws.files().contains(&"@1/top.md".to_string()));
         assert_eq!(ws.resolve_link("@1/top.md", "sub/c.md"), Some(("@1/sub/c.md".into(), None)));
         assert_eq!(ws.resolve_link("@1/top.md", "../README.md"), None);
+        assert_eq!(ws.resolve_link("@1/sub/c.md", "../../README.md"), None);
+        assert_eq!(ws.resolve_link("@1/sub/c.md", "/top.md"), Some(("@1/top.md".into(), None)));
+        assert_eq!(ws.resolve_link("@1/sub/c.md", "../top.md"), Some(("@1/top.md".into(), None)));
 
         ws.remove_root(1);
         assert!(ws.resolve("@1/top.md").is_err());
