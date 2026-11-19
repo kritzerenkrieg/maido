@@ -205,12 +205,6 @@ fn command(file: &Path, out: &Path, src_dir: &Path, program: Program) -> Result<
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    // Its own process group, so a timeout stops the engine `latexmk` started too.
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        cmd.process_group(0);
-    }
     Ok(cmd)
 }
 
@@ -232,7 +226,33 @@ pub fn compile(compiler: &Compiler, src: &Path, text: &str, out: &Path) -> Resul
     }
 
     let src_dir = src.parent().unwrap_or(Path::new("."));
-    let mut child = command(&file, out, src_dir, program(text))?.spawn().map_err(|e| format!("Could not start TeX: {e}"))?;
+    let (status, output) = run(command(&file, out, src_dir, program(text))?, TIMEOUT)?;
+    if status.success()
+        && let Ok(bytes) = std::fs::read(&pdf)
+    {
+        return Ok(bytes);
+    }
+    let log = std::fs::read(&log).map(|b| String::from_utf8_lossy(&b).into_owned()).unwrap_or_default();
+    let errors = errors(&log);
+    Err(if !errors.is_empty() {
+        errors
+    } else {
+        let tail: Vec<&str> = output.lines().filter(|l| !l.trim().is_empty()).collect();
+        let tail = tail[tail.len().saturating_sub(ERROR_LINES)..].join("\n");
+        if tail.is_empty() { format!("TeX stopped ({status}) without a PDF.") } else { tail }
+    })
+}
+
+/// Run `cmd` (its output piped) to the end, or stop it and everything it
+/// started after `timeout`; its exit status and the end of what it printed.
+fn run(mut cmd: Command, timeout: Duration) -> Result<(std::process::ExitStatus, String), String> {
+    // Its own process group, so a timeout stops the engine `latexmk` started too.
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
+    }
+    let mut child = cmd.spawn().map_err(|e| format!("Could not start TeX: {e}"))?;
     // Read the pipes on threads, so a chatty TeX never blocks on a full
     // pipe; only the end of what it prints is kept.
     let pipe = |r: Option<Box<dyn std::io::Read + Send>>| {
@@ -260,29 +280,16 @@ pub fn compile(compiler: &Compiler, src: &Path, text: &str, out: &Path) -> Resul
     let status = loop {
         match child.try_wait() {
             Ok(Some(status)) => break status,
-            Ok(None) if start.elapsed() > TIMEOUT => {
+            Ok(None) if start.elapsed() > timeout => {
                 kill_all(&mut child);
-                return Err(format!("TeX ran for more than {} s and was stopped.", TIMEOUT.as_secs()));
+                return Err(format!("TeX ran for more than {} s and was stopped.", timeout.as_secs()));
             }
             Ok(None) => std::thread::sleep(Duration::from_millis(40)),
             Err(e) => return Err(e.to_string()),
         }
     };
     let output = format!("{}{}", stdout.join().unwrap_or_default(), stderr.join().unwrap_or_default());
-    if status.success()
-        && let Ok(bytes) = std::fs::read(&pdf)
-    {
-        return Ok(bytes);
-    }
-    let log = std::fs::read(&log).map(|b| String::from_utf8_lossy(&b).into_owned()).unwrap_or_default();
-    let errors = errors(&log);
-    Err(if !errors.is_empty() {
-        errors
-    } else {
-        let tail: Vec<&str> = output.lines().filter(|l| !l.trim().is_empty()).collect();
-        let tail = tail[tail.len().saturating_sub(ERROR_LINES)..].join("\n");
-        if tail.is_empty() { format!("TeX stopped ({status}) without a PDF.") } else { tail }
-    })
+    Ok((status, output))
 }
 
 /// The error lines of a TeX log (`! …` or, with `-file-line-error`,
@@ -325,6 +332,34 @@ mod tests {
     fn folders_for_included_files() {
         let text = "\\include{intro}\n\\include{chapters/one} \\include{chapters/two}\n% \\include{old/x}\n\\include{../up/x}\\include{/abs/x}\\include{a/b/c}";
         assert_eq!(include_dirs(text), [PathBuf::from("chapters"), PathBuf::from("a/b")]);
+    }
+
+    /// A compile that runs too long is stopped with everything it started:
+    /// here a shell that starts a child and waits for it, as `latexmk` waits
+    /// for its engine.
+    #[cfg(unix)]
+    #[test]
+    fn timeout_stops_what_the_compile_started() {
+        let dir = std::env::temp_dir().join(format!("maido-tex-timeout-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let pid_file = dir.join("child.pid");
+        let mut cmd = Command::new("sh");
+        cmd.arg("-c").arg("sleep 60 & echo $! > \"$1\"; wait").arg("sh").arg(&pid_file).stdout(Stdio::piped()).stderr(Stdio::piped());
+        let started = Instant::now();
+        let err = run(cmd, Duration::from_millis(500)).unwrap_err();
+        assert!(err.contains("was stopped"), "{err}");
+        assert!(started.elapsed() < Duration::from_secs(10));
+        let pid: i32 = std::fs::read_to_string(&pid_file).unwrap().trim().parse().unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+        // Gone (not even a zombie for long: init reaps it) within a few seconds.
+        // SAFETY: signal 0 only checks whether the process exists.
+        let alive = || unsafe { libc::kill(pid, 0) } == 0;
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while alive() && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        assert!(!alive(), "the child {pid} still runs");
     }
 
     /// Runs only where TeX is installed.
