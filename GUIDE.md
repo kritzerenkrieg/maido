@@ -18,7 +18,7 @@ From a shell, `maido .`, `maido ~/notes` and `maido README.md` open a folder or 
 | Shortcut | Action |
 |---|---|
 | `Ctrl+F` | Find in the document (see below); in the editor it is the editor's find and replace |
-| `Ctrl+E` | Switch the tab between reading and editing |
+| `Ctrl+E` | Switch the tab between reading and editing (source files always open in the editor) |
 | `Ctrl+S` | Save (refused if the file changed on disk since you opened it) |
 | `Ctrl+W` | Close the tab (asks first when it has unsaved edits) |
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | Next / previous tab |
@@ -121,6 +121,7 @@ In the palette `↑` `↓` choose, `Enter` opens, `Escape` closes.
 | `.md`, `.markdown` | Rendered; editable |
 | `.mmd`, `.mermaid` | One diagram with zoom and pan; editable |
 | `.tex`, `.latex` | Rendered as a document with KaTeX math (see below); editable |
+| Source code (Rust, Python, C, JavaScript, JSON, shell and about thirty more; `</>` in the Explorer) | Opens in the editor, coloured |
 | PNG, JPEG, WebP, GIF, BMP, AVIF, ICO, SVG | Shown as a picture |
 | PDF (up to 50 MB) | Drawn page by page |
 | Any other text file | Plain text, editable |
