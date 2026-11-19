@@ -1447,6 +1447,38 @@ button {
   img {
     break-inside: avoid;
   }
+  /* A PDF prints as pictures of all its pages, one per sheet; a diagram file
+     as the whole diagram, fitted to the sheet. */
+  .pdf-wrap,
+  .tex-pdf,
+  .tex-pdf-body,
+  .mmd-page {
+    position: static !important;
+    overflow: visible !important;
+  }
+  .pdf-scroll,
+  .pdf-tools,
+  .tex-error,
+  .tex-busy,
+  .pdf-auto-mark,
+  .mmd-canvas,
+  .mmd-page > .doc-note {
+    display: none !important;
+  }
+  .pdf-print img {
+    display: block;
+    max-width: 100%;
+    max-height: 100vh;
+    margin: 0 auto;
+    break-after: page;
+  }
+  .mmd-print svg {
+    display: block;
+    max-width: 100% !important;
+    max-height: 100vh;
+    height: auto;
+    margin: 0 auto;
+  }
 }
 
 /* Pictures and PDFs: shown as files, not as documents. */
@@ -1461,19 +1493,157 @@ button {
   object-fit: contain;
   background: repeating-conic-gradient(color-mix(in srgb, var(--fg) 6%, transparent) 0 25%, transparent 0 50%) 0 0 / 16px 16px;
 }
+.pdf-wrap {
+  position: absolute;
+  inset: 0;
+}
+.pdf-scroll {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  outline: none;
+}
+.pdf-wrap.auto .pdf-scroll {
+  cursor: all-scroll;
+}
+/* As wide as the widest page when zoomed in, so every part can be scrolled to. */
 .pdf-pages {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  padding: 24px;
+  box-sizing: border-box;
+  width: max-content;
+  min-width: 100%;
+  padding: 24px 24px 64px;
 }
 .pdf-page {
-  width: 100%;
-  max-width: 900px;
-  height: auto;
+  position: relative;
+  flex: none;
   background: #fff;
   box-shadow: 0 1px 6px rgb(0 0 0 / 0.25);
+  --scale-round-x: 1px;
+  --scale-round-y: 1px;
+}
+.pdf-page canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.pdf-tools {
+  position: absolute;
+  right: 18px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.pdf-tools button {
+  padding: 4px 10px;
+  min-width: 2.2em;
+}
+.pdf-tools button:disabled {
+  opacity: 0.4;
+}
+.pdf-tools-sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 4px 2px;
+  background: var(--line);
+}
+.pdf-pageno {
+  padding: 0 4px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pdf-pageno input {
+  width: 3.2em;
+  padding: 1px 4px;
+  text-align: right;
+  font: inherit;
+  color: var(--fg);
+}
+/* Where autoscroll started (middle click). */
+.pdf-auto-mark {
+  position: fixed;
+  z-index: 20;
+  width: 26px;
+  height: 26px;
+  margin: -13px 0 0 -13px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--fg) 0 2px, transparent 3px), var(--panel);
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+/* pdf.js's text layer: invisible text over each page's picture, for selecting
+   (the rules from pdf.js's pdf_viewer.css that it needs). */
+.textLayer {
+  color-scheme: only light;
+  position: absolute;
+  text-align: initial;
+  inset: 0;
+  overflow: clip;
+  opacity: 1;
+  line-height: 1;
+  letter-spacing: normal;
+  word-spacing: normal;
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  caret-color: CanvasText;
+  z-index: 0;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+}
+.textLayer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.textLayer > :not(.markedContent),
+.textLayer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  --font-height: 0;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  --scale-x: 1;
+  --rotate: 0deg;
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+.textLayer .markedContent {
+  display: contents;
+}
+.textLayer span[role='img'] {
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+}
+.textLayer ::selection {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  color: transparent;
+}
+.textLayer br::selection {
+  background: transparent;
+}
+.textLayer .endOfContent {
+  display: block;
+  position: absolute;
+  inset: 100% 0 0;
+  z-index: 0;
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 /* A folder's name above its tree, when the workspace has more than one: a

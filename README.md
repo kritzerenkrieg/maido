@@ -19,7 +19,7 @@ Most of what an agent or a CLI writes ends up as Markdown. maido is for reading 
 - **Math** with KaTeX: `$…$`, `$$…$$` and `math` fences, typeset only when a document has any.
 - **LaTeX files.** `.tex` documents open as readable documents with their math typeset, and are coloured in the editor. They are read, not compiled: see the [guide](GUIDE.md#latex).
 - **Mermaid built in.** Diagrams in fenced blocks or `.mmd` files, with zoom, pan and export to PDF, PNG or JPG.
-- **Pictures and PDFs** open as tabs too (PDFs are drawn page by page, only the pages near the view).
+- **Pictures and PDFs** open as tabs too. PDFs are drawn page by page, only the pages near the view, with zoom, selectable text, page steps and autoscroll.
 - **Themes and reading settings.** System, light or dark; serif or sans; text size and page margins.
 
 ### Working
