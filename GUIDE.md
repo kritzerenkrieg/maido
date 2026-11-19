@@ -120,7 +120,7 @@ In the palette `↑` `↓` choose, `Enter` opens, `Escape` closes.
 |---|---|
 | `.md`, `.markdown` | Rendered; editable |
 | `.mmd`, `.mermaid` | One diagram with zoom and pan; editable |
-| `.tex`, `.latex` | Rendered as a document with KaTeX math (see below); editable |
+| `.tex`, `.latex` | Rendered as a document with KaTeX math, or compiled to PDF (see below); editable |
 | Source code (Rust, Python, C, JavaScript, JSON, shell and about thirty more; `</>` in the Explorer) | Opens in the editor, coloured |
 | PNG, JPEG, WebP, GIF, BMP, AVIF, ICO, SVG | Shown as a picture |
 | PDF (up to 50 MB) | Drawn page by page; text can be selected and copied (see below) |
@@ -146,3 +146,5 @@ Diagram files (`.mmd`, `.mermaid`) print as the whole diagram fitted to the shee
 ### LaTeX
 
 A `.tex` file is read as a document, not compiled: sections, emphasis, lists, quotes, `verbatim` and `lstlisting` code, simple `tabular`s, `\includegraphics` pictures, `\href`/`\url` links, `\cite`/`\ref` (shown as `[key]`) and all math (`$…$`, `\(…\)`, `$$…$$`, `\[…\]`, `equation`, `align`, `gather`, …) are shown. Macros you define, packages, page layout and bibliographies are not run; an unknown command loses its name and keeps its text. Line positions can shift by a few lines in lists and tables, so scroll sync is approximate.
+
+**PDF mode.** The *Markdown / PDF* switch in the top bar (for `.tex` files) compiles the file with your own TeX instead: `latexmk` if you have it, else Tectonic, else `pdflatex` (`xelatex` or `lualatex` when the file has `% !TEX program = xelatex` near the top, or loads `fontspec`). maido ships no TeX; install TeX Live, MacTeX or MiKTeX, TinyTeX (a small TeX Live, about 200 MB: `curl -sL https://yihui.org/tinytex/install-bin-unix.sh | sh`, then `tlmgr install <package>` for what a document is missing), or Tectonic. It compiles again whenever the file is saved or a file beside it changes (another `.tex`, a `.bib`, a picture), and while you edit, once you stop typing. When TeX stops with an error, its messages show above the last PDF that compiled. Compiling happens in maido's cache folder, so nothing (`.aux`, `.log`, the PDF) is written beside your file; files beside it are found as usual for `\input`, `\include`, `\includegraphics` and bibliographies. The switch is remembered per file.

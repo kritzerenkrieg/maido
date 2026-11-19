@@ -1581,6 +1581,52 @@ button {
   pointer-events: none;
 }
 
+/* A .tex file in PDF mode (C4): TeX's errors above the last PDF that compiled. */
+.tex-pdf {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.tex-pdf-body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+.tex-error {
+  margin: 8px 12px 0;
+  padding: 6px 10px;
+  border-radius: 4px;
+  background: color-mix(in srgb, #cf222e 15%, var(--bg));
+}
+.tex-error-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tex-error-head span {
+  flex: 1;
+}
+.tex-error pre {
+  max-height: 30vh;
+  overflow: auto;
+  margin: 6px 0 2px;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+.tex-busy {
+  position: absolute;
+  top: 8px;
+  right: 18px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  pointer-events: none;
+}
+
 /* pdf.js's text layer: invisible text over each page's picture, for selecting
    (the rules from pdf.js's pdf_viewer.css that it needs). */
 .textLayer {

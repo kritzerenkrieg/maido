@@ -65,6 +65,8 @@ export interface Session {
   /** The terminal panel: beside or below the document, and its share of the space. */
   termPos: 'right' | 'bottom'
   termSize: number
+  /** `.tex` files shown as their compiled PDF rather than read as Markdown. */
+  texPdf: Record<string, boolean>
 }
 
 export interface Settings {
@@ -138,6 +140,8 @@ export const api = {
   loadDocument: (path: string, have: string[]) => invoke<DocView>('load_document', { path, have }),
   previewDocument: (path: string, text: string, have: string[]) => invoke<DocView>('preview_document', { path, text, have }),
   readPdf: (path: string) => invoke<ArrayBuffer>('read_pdf', { path }),
+  /** A `.tex` file compiled by the system's TeX (`text`: unsaved edits instead of the file); rejects with TeX's errors. */
+  compileLatex: (path: string, text: string | null) => invoke<ArrayBuffer>('compile_latex', { path, text }),
   loadSource: (path: string) => invoke<{ text: string; hash: string }>('load_source', { path }),
   /** Rejects with "conflict" when the file changed on disk since `base` (E3). */
   saveFile: (path: string, text: string, base: string, force = false) => invoke<string>('save_file', { path, text, base, force }),
@@ -204,6 +208,10 @@ export interface GitStatus {
 }
 
 export const DOC_EXTENSIONS = ['md', 'markdown', 'mmd', 'mermaid', 'tex', 'latex']
+
+export function isLatex(path: string): boolean {
+  return /\.(tex|latex)$/i.test(path)
+}
 
 export function isDoc(path: string): boolean {
   return DOC_EXTENSIONS.includes(path.split('.').pop()?.toLowerCase() ?? '')

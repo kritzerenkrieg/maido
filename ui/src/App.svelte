@@ -17,8 +17,9 @@
   import type PaletteT from './Palette.svelte'
   import type { Command } from './Palette.svelte'
   import type SearchT from './Search.svelte'
+  import TexPdf from './TexPdf.svelte'
   import Tree from './Tree.svelte'
-  import { api, isCode, isDoc, type Entry, type FsChange, type OutlineItem, type RootInfo, type Session, type Settings, type UpdateInfo, type WorkspaceInfo } from './lib/api'
+  import { api, isCode, isDoc, isLatex, type Entry, type FsChange, type OutlineItem, type RootInfo, type Session, type Settings, type UpdateInfo, type WorkspaceInfo } from './lib/api'
   import type { Buffer } from './lib/buffers'
     import type { LinkTarget } from './lib/terminal'
   import { applyTheme } from './lib/theme'
@@ -26,7 +27,7 @@
   import type TerminalsPanel from './Terminals.svelte'
 
   let info = $state<WorkspaceInfo | null>(null)
-  let session = $state<Session>({ tabs: [], active: null, scroll: {}, follow: false, all: false, termPos: 'bottom', termSize: 0.35 })
+  let session = $state<Session>({ tabs: [], active: null, scroll: {}, follow: false, all: false, termPos: 'bottom', termSize: 0.35, texPdf: {} })
   let settings = $state<Settings>({
     remoteImages: 'ask',
     scrollback: 2000,
@@ -104,6 +105,37 @@
   const allowRemote = $derived(settings.remoteImages === 'always' || (active != null && remoteAnswer[active] === true))
   const askRemote = $derived(activeFile != null && remoteImages > 0 && settings.remoteImages === 'ask' && remoteAnswer[activeFile] === undefined)
   const anyDirty = $derived(Object.values(dirty).some(Boolean))
+
+  // ---- LaTeX as PDF (C4) ----
+
+  /** A `.tex` file shown as its compiled PDF. */
+  const asPdf = (path: string | null) => !!path && isLatex(path) && !!session.texPdf?.[path]
+  /** Changes beside a `.tex` file in PDF mode that it may include (other `.tex`, bibliographies, pictures). */
+  let texDeps = $state<Record<string, number>>({})
+  let texView = $state<ReturnType<typeof TexPdf>>()
+
+  function toggleTexPdf() {
+    const f = activeFile
+    if (!f || !isLatex(f)) return
+    session.texPdf = { ...session.texPdf, [f]: !session.texPdf?.[f] }
+    if (session.texPdf[f]) outline = []
+  }
+
+  // A PDF has no outline here.
+  $effect(() => {
+    if (asPdf(activeFile)) outline = []
+  })
+
+  function texChanged(path: string) {
+    if (!/\.(tex|latex|bib|bst|sty|cls|png|jpe?g|pdf|eps|svg)$/i.test(path)) return
+    for (const f of session.tabs) {
+      if (!asPdf(f) || f === path) continue
+      const dir = parentOf(f)
+      // The PDF a compile in the terminal leaves beside the file is not something it includes.
+      if (path.replace(/\.pdf$/i, '') === f.replace(/\.(tex|latex)$/i, '')) continue
+      if (!dir || path.startsWith(dir + '/')) texDeps[f] = (texDeps[f] ?? 0) + 1
+    }
+  }
 
   function name(path: string) {
     if (isDiff(path)) return `Diff ${path.slice(5)}`
@@ -270,7 +302,8 @@
   async function printDoc() {
     if (!activeFile || !printable(activeFile)) return say('Only documents, diagrams and PDFs print.')
     try {
-      await doc?.prepareExport()
+      if (asPdf(activeFile)) await texView?.preparePrint()
+      else await doc?.prepareExport()
       await api.printPage()
     } catch (e) {
       say(`Not printed: ${e}`)
@@ -510,6 +543,7 @@
       return
     }
     delete deleted[c.path]
+    texChanged(c.path)
     if (buffers.has(c.path)) void diskChanged(c.path)
     if (session.tabs.includes(c.path)) versions[c.path] = (versions[c.path] ?? 0) + 1
     // Follow mode: show what was just written (E4).
@@ -1211,6 +1245,13 @@
       <button class="tabs-btn" onclick={diffButton} title={activeFile && dirty[activeFile] ? 'Compare the saved file with your unsaved edits' : activeFile ? 'Compare this file with another file or text' : 'Compare two files or texts'}>Diff</button>
       <button class="tabs-btn" class:on={sidebar === 'git'} onclick={() => (sidebar === 'git' ? (sidebar = 'files') : void showGit())} title="Changes, commit and sync">Git</button>
       <button class="tabs-btn" onclick={() => (termOpen ? (termOpen = false) : void showTerminal())} title="Terminal (Ctrl+`)">Terminal</button>
+      {#if activeFile && isLatex(activeFile)}
+        <span class="tools-sep" aria-hidden="true">|</span>
+        <button class="mode-switch" role="switch" aria-checked={asPdf(activeFile)} onclick={toggleTexPdf} title="Read as Markdown, or compile to PDF with your TeX (recompiled on every change)">
+          <span class:on={!asPdf(activeFile)}>Markdown</span>
+          <span class:on={asPdf(activeFile)}>PDF</span>
+        </button>
+      {/if}
       {#if activeFile && !(isCode(activeFile) && !codeFailed[activeFile])}
         <span class="tools-sep" aria-hidden="true">|</span>
         <button class="mode-switch" role="switch" aria-checked={!!editing[activeFile]} onclick={toggleEdit} title="Viewer or editor (Ctrl+E)">
@@ -1343,7 +1384,13 @@
                 />
               {/key}
             </div>
-            {#if hasPreview(activeFile)}
+            {#if asPdf(activeFile)}
+              <div class="preview-pane">
+                {#key activeFile}
+                  <TexPdf bind:this={texView} path={activeFile} version={(versions[activeFile] ?? 0) + (texDeps[activeFile] ?? 0)} text={dirty[activeFile] ? (preview[activeFile] ?? null) : null} />
+                {/key}
+              </div>
+            {:else if hasPreview(activeFile)}
               <div class="preview-pane" onpointerenter={() => (syncFrom = 'preview')} role="presentation">
                 <Document
                   bind:this={doc}
@@ -1368,6 +1415,10 @@
           </div>
         {:else if activeFile && isCode(activeFile) && !codeFailed[activeFile]}
           <!-- A source file on its way into the editor. -->
+        {:else if activeFile && asPdf(activeFile)}
+          {#key activeFile}
+            <TexPdf bind:this={texView} path={activeFile} version={(versions[activeFile] ?? 0) + (texDeps[activeFile] ?? 0)} text={dirty[activeFile] ? (preview[activeFile] ?? null) : null} />
+          {/key}
         {:else if activeFile}
           <!-- An error while drawing one file must not leave the pane dead for the next: keyed by file, so changing document starts clean. -->
           {#key activeFile}

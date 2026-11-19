@@ -24,7 +24,7 @@ Measured against a bare Tauri window in the same sitting: idle with one document
 
 ## Saved state
 
-Sessions and settings: `~/.local/share/dev.maido.viewer/sessions.json`. Mermaid SVG cache: `~/.cache/dev.maido.viewer/mermaid/`.
+Sessions and settings: `~/.local/share/dev.maido.viewer/sessions.json`. Mermaid SVG cache: `~/.cache/dev.maido.viewer/mermaid/`. Compiled LaTeX (PDF mode): `~/.cache/dev.maido.viewer/latex/`.
 
 ## Screenshots
 

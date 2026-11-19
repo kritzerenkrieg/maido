@@ -7,6 +7,7 @@ mod highlight;
 mod latex;
 mod mermaid;
 mod pty;
+mod texpdf;
 mod update;
 mod workspace;
 
@@ -21,6 +22,7 @@ use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowB
 use doc::Document;
 use mermaid::Mermaid;
 use pty::Terminals;
+use texpdf::Compiler;
 use update::Updates;
 use workspace::{Entry, Sessions, Workspace};
 
@@ -228,6 +230,31 @@ async fn read_pdf(window: WebviewWindow, windows: State<'_, Windows>, path: Stri
         return Err(format!("{path} is {} MB; maido shows PDFs up to 50 MB", meta.len() / 1024 / 1024));
     }
     std::fs::read(&full).map(Response::new).map_err(|e| e.to_string())
+}
+
+/// A `.tex` file compiled to PDF by the system's TeX (C4): the file as saved,
+/// or `text` (the editor's unsaved text). The PDF's bytes, or TeX's errors.
+/// It is compiled in maido's cache, never in the workspace.
+#[tauri::command]
+async fn compile_latex(app: AppHandle, window: WebviewWindow, windows: State<'_, Windows>, path: String, text: Option<String>) -> Result<Response, String> {
+    let ws = windows.get(&window)?;
+    if !matches!(extension(&path).as_str(), "tex" | "latex") {
+        return Err(format!("{path} is not a LaTeX file"));
+    }
+    let full = ws.resolve(&path)?;
+    let text = match text {
+        Some(t) => t,
+        None => match read_file(&ws, &path)? {
+            (_, Some(t), _) => t,
+            (_, None, _) => return Err(format!("{path} is a binary file")),
+        },
+    };
+    let key = blake3::hash(full.to_string_lossy().as_bytes()).to_hex()[..16].to_string();
+    let out = app.path().app_cache_dir().map_err(|e| e.to_string())?.join("latex").join(key);
+    tauri::async_runtime::spawn_blocking(move || texpdf::compile(&app.state::<Compiler>(), &full, &text, &out))
+        .await
+        .map_err(|e| e.to_string())?
+        .map(Response::new)
 }
 
 /// The editor's live preview (B5): the unsaved buffer, through the same
@@ -762,6 +789,7 @@ pub fn run() {
         .manage(Windows::default())
         .manage(Mermaid::default())
         .manage(Terminals::default())
+        .manage(Compiler::default())
         .manage(Updates::new(updater))
         .setup(move |app| {
             // Back into the AppImage's mount before WebKit starts (see above).
@@ -797,6 +825,7 @@ pub fn run() {
             preview_document,
             load_source,
             read_pdf,
+            compile_latex,
             save_file,
             diff_lines,
             diff_rendered,
