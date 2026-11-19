@@ -7,6 +7,7 @@
   // (E1, L6). Tabs, scroll positions, toggles and the panel's place
   // are remembered per workspace; terminal sessions, edits and diffs are not.
   // Settings (theme, reading, terminals, images) are global.
+  import { getVersion } from '@tauri-apps/api/app'
   import { getCurrentWindow } from '@tauri-apps/api/window'
   import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
   import { onMount, tick } from 'svelte'
@@ -561,6 +562,7 @@
   // ---- Updates (M3) ----
 
   let update = $state<UpdateInfo | null>(null)
+  let appVersion = $state('')
   let updating = $state(false)
   const DAY = 24 * 60 * 60 * 1000
 
@@ -1049,6 +1051,7 @@
       style.textContent = await api.highlightCss()
       document.head.append(style)
 
+      void getVersion().then((v) => (appVersion = v), () => {})
       info = await api.workspaceInfo()
       roots = info.roots
       const saved = await api.loadSession().catch(() => null)
@@ -1220,7 +1223,7 @@
               <span>GPU terminals</span>
               <input type="checkbox" bind:checked={settings.terminalGpu} onchange={saveSettings} />
             </label>
-            <h4>Updates</h4>
+            <h4>Updates{#if appVersion} <span class="set-version">maido {appVersion}</span>{/if}</h4>
             <label class="set-row" title="Look for a new version once a day">
               <span>Check for updates</span>
               <input type="checkbox" bind:checked={settings.checkUpdates} onchange={saveSettings} />

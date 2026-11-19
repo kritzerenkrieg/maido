@@ -31,6 +31,7 @@ Most of what an agent or a CLI writes ends up as Markdown. maido is for reading 
 - **Compare.** A diff window for files or pasted text, side by side or inline, also rendered for Markdown.
 - **Follow mode.** Switch to each document as it changes on disk, to watch an agent work.
 - **Print and export** to PDF: documents, diagram files and PDFs.
+- **Updates.** Released builds check once a day; the AppImage, Windows and macOS builds update themselves.
 
 ### Small
 - **Light on memory.** Tauri 2 and Svelte 5, with parsing, highlighting, search and terminals done in Rust. Mermaid, KaTeX, the editor and the terminal load only when used.
