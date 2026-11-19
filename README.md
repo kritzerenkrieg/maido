@@ -40,6 +40,7 @@ Most of what an agent or a CLI writes ends up as Markdown. maido is for reading 
 ## Usage
 
 ```sh
+maido              # open the last folder you had open (or ~)
 maido .            # open the current folder
 maido ~/notes      # open a folder
 maido README.md    # open a file
