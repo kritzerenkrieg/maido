@@ -2556,6 +2556,7 @@ dependencies = [
  "grep-searcher",
  "gtk",
  "ignore",
+ "libc",
  "notify",
  "notify-debouncer-full",
  "nucleo-matcher",

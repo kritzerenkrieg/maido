@@ -77,8 +77,9 @@
   /** pdf.js takes the buffer it is given (it moves to its worker): it gets a copy. */
   const load = () => (bytes ? Promise.resolve(bytes.slice(0)) : Promise.reject(new Error('Nothing compiled yet')))
 
+  /** Rejects until a PDF has compiled. */
   export function preparePrint(): Promise<void> {
-    return pdfPage?.preparePrint() ?? Promise.resolve()
+    return pdfPage ? pdfPage.preparePrint() : Promise.reject(new Error(compiling ? 'it is still compiling' : 'nothing has compiled yet'))
   }
 
   onDestroy(() => {

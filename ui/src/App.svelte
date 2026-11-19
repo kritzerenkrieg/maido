@@ -301,10 +301,16 @@
   }
 
   async function printDoc() {
-    if (!activeFile || !printable(activeFile)) return say('Only documents, diagrams and PDFs print.')
+    const file = activeFile
+    if (!file || !printable(file)) return say('Only documents, diagrams and PDFs print.')
+    const pdfMode = asPdf(file)
     try {
-      if (asPdf(activeFile)) await texView?.preparePrint()
-      else await doc?.prepareExport()
+      if (pdfMode) {
+        if (!texView) throw new Error('nothing has compiled yet')
+        await texView.preparePrint()
+      } else await doc?.prepareExport()
+      // Preparing takes a while; what is shown now is what would print.
+      if (activeFile !== file || asPdf(file) !== pdfMode) return say('Not printed: the tab changed while it was being prepared.')
       await api.printPage()
     } catch (e) {
       say(`Not printed: ${e}`)
@@ -539,12 +545,12 @@
   function onchange(c: FsChange) {
     gitPanel?.changed()
     if (c.tree) refreshFolder(parentOf(c.path))
+    texChanged(c.path)
     if (c.kind === 'remove') {
       if (session.tabs.includes(c.path)) deleted[c.path] = true
       return
     }
     delete deleted[c.path]
-    texChanged(c.path)
     if (buffers.has(c.path)) void diskChanged(c.path)
     if (session.tabs.includes(c.path)) versions[c.path] = (versions[c.path] ?? 0) + 1
     // Follow mode: show what was just written (E4).
@@ -578,6 +584,11 @@
       if (asked) say(`Could not check for updates: ${e}`)
     }
   }
+
+  // Rust installs an update only when no window has unsaved edits.
+  $effect(() => {
+    void api.setUnsaved(anyDirty).catch(() => {})
+  })
 
   async function installUpdate() {
     // maido restarts: edits must be saved first.

@@ -162,6 +162,10 @@ jobs:
           jq -n --arg v "${TAG#v}" --arg n "$notes" --arg d "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson p "$entries" \
             '{version: $v, notes: $n, pub_date: $d, platforms: $p}' > latest.json
           cat latest.json
+          # A re-run after a failed publish finds the manifest of the first run: replace it.
+          for old in $(gh api "repos/$REPO/releases/$ID/assets" --paginate --jq '.[] | select(.name == "latest.json") | .id'); do
+            gh api -X DELETE "repos/$REPO/releases/assets/$old"
+          done
           curl -sSf -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Content-Type: application/json' \
             --data-binary @latest.json "https://uploads.github.com/repos/$REPO/releases/$ID/assets?name=latest.json" > /dev/null
 

@@ -458,12 +458,12 @@
     printed = []
   }
 
-  /** Draw every page for printing (pages are drawn one at a time, to keep memory down). */
+  /** Draw every page for printing (pages are drawn one at a time, to keep memory down). Rejects when there is no PDF yet. */
   export function preparePrint(): Promise<void> {
     if (printing) return printing
     const doc = pdf
     printing = (async () => {
-      if (!doc) return
+      if (!doc) throw new Error('the PDF has not loaded yet')
       const urls: string[] = []
       const canvas = document.createElement('canvas')
       try {
@@ -477,10 +477,16 @@
           const blob = await new Promise<Blob | null>((done) => canvas.toBlob(done, 'image/png'))
           if (blob) urls.push(URL.createObjectURL(blob))
         }
+      } catch (e) {
+        urls.forEach((u) => URL.revokeObjectURL(u))
+        throw e
       } finally {
         canvas.width = canvas.height = 0
       }
-      if (doc !== pdf) return urls.forEach((u) => URL.revokeObjectURL(u))
+      if (doc !== pdf) {
+        urls.forEach((u) => URL.revokeObjectURL(u))
+        throw new Error('the PDF changed while it was being prepared')
+      }
       clearPrint()
       printed = urls
       await tick()
