@@ -89,6 +89,26 @@ export interface Settings {
 }
 
 /** A newer release: `install` when maido can update itself (AppImage, Windows, macOS), else `url` is the package. */
+/** A touchpad pinch, from Rust (WebKitGTK never sees it); `scale` is since it began. */
+export interface Pinch {
+  phase: 'begin' | 'update' | 'end'
+  scale: number
+  x: number
+  y: number
+}
+
+/** Calls `zoom` with the pinch's scale times what `start` returned when it began; for `el`'s `pinch` events. */
+export function onPinch(el: HTMLElement, start: () => number, zoom: (next: number, x: number, y: number) => void): () => void {
+  let base = 1
+  const on = (e: Event) => {
+    const p = (e as CustomEvent<Pinch>).detail
+    if (p.phase === 'begin') base = start()
+    else if (p.phase === 'update') zoom(base * p.scale, p.x, p.y)
+  }
+  el.addEventListener('pinch', on)
+  return () => el.removeEventListener('pinch', on)
+}
+
 export interface UpdateInfo {
   version: string
   notes: string

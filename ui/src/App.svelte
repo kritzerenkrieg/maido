@@ -20,7 +20,7 @@
   import type SearchT from './Search.svelte'
   import TexPdf from './TexPdf.svelte'
   import Tree from './Tree.svelte'
-  import { api, isCode, isDoc, isLatex, type Entry, type FsChange, type OutlineItem, type RootInfo, type Session, type Settings, type UpdateInfo, type WorkspaceInfo } from './lib/api'
+  import { api, isCode, isDoc, isLatex, type Entry, type FsChange, type OutlineItem, type Pinch, type RootInfo, type Session, type Settings, type UpdateInfo, type WorkspaceInfo } from './lib/api'
   import type { Buffer } from './lib/buffers'
     import type { LinkTarget } from './lib/terminal'
   import { applyTheme } from './lib/theme'
@@ -971,6 +971,14 @@
     node.setSelectionRange(0, dot > 0 ? dot : node.value.length)
   }
 
+  /** A touchpad pinch zooms the PDF or diagram it began over; elsewhere it does nothing. */
+  let pinchTarget: Element | null = null
+  function routePinch(p: Pinch) {
+    if (p.phase === 'begin') pinchTarget = document.elementFromPoint(p.x, p.y)?.closest('.pdf-scroll, .mmd-page') ?? null
+    pinchTarget?.dispatchEvent(new CustomEvent('pinch', { detail: p }))
+    if (p.phase === 'end') pinchTarget = null
+  }
+
   function onpointerdown(e: PointerEvent) {
     const el = e.target as Element
     if (menu && !el.closest('.menubar')) menu = null
@@ -1038,6 +1046,7 @@
     const unlisten = [
       win.listen<FsChange>('fs-change', (e) => onchange(e.payload)),
       win.listen<string>('open-file', (e) => open(e.payload)),
+      win.listen<Pinch>('pinch', (e) => routePinch(e.payload)),
       // Unsaved edits are never lost by closing the window (E3).
       getCurrentWindow().onCloseRequested((e) => {
         if (Object.values(dirty).some(Boolean)) {

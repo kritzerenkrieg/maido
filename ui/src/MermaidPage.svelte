@@ -2,6 +2,7 @@
   // A `.mmd` / `.mermaid` file: one diagram filling the view, with zoom
   // (wheel, around the cursor) and pan (drag); double-click resets (C2).
   import { onDestroy, tick } from 'svelte'
+  import { onPinch } from './lib/api'
   import { DOWNLOAD_ICON, closeExportMenu, openExportMenu } from './lib/diagram-export'
   import { diagram } from './lib/mermaid'
   import { isDark, onThemeChange } from './lib/theme'
@@ -51,15 +52,25 @@
 
   function onwheel(e: WheelEvent) {
     e.preventDefault()
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    const factor = Math.exp(-e.deltaY / 500)
-    const next = Math.min(20, Math.max(0.1, scale * factor))
-    const px = e.clientX - r.left
-    const py = e.clientY - r.top
+    zoomAt(scale * Math.exp(-e.deltaY / 500), e.clientX, e.clientY)
+  }
+
+  /** Zoom to `next`, keeping the point under (`cx`, `cy`) in the window where it is. */
+  function zoomAt(next: number, cx: number, cy: number) {
+    if (!page) return
+    next = Math.min(20, Math.max(0.1, next))
+    const r = page.getBoundingClientRect()
+    const px = cx - r.left
+    const py = cy - r.top
     x = px - ((px - x) * next) / scale
     y = py - ((py - y) * next) / scale
     scale = next
   }
+
+  // A touchpad pinch (sent here by App.svelte), around the fingers.
+  $effect(() => {
+    if (page) return onPinch(page, () => scale, zoomAt)
+  })
 
   function onpointerdown(e: PointerEvent) {
     drag = { x: e.clientX - x, y: e.clientY - y }
