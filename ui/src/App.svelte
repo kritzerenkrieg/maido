@@ -18,7 +18,7 @@
   import type { Command } from './Palette.svelte'
   import type SearchT from './Search.svelte'
   import Tree from './Tree.svelte'
-  import { api, isDoc, type Entry, type FsChange, type OutlineItem, type RootInfo, type Session, type Settings, type UpdateInfo, type WorkspaceInfo } from './lib/api'
+  import { api, isCode, isDoc, type Entry, type FsChange, type OutlineItem, type RootInfo, type Session, type Settings, type UpdateInfo, type WorkspaceInfo } from './lib/api'
   import type { Buffer } from './lib/buffers'
     import type { LinkTarget } from './lib/terminal'
   import { applyTheme } from './lib/theme'
@@ -78,6 +78,9 @@
   let preview = $state<Record<string, string>>({})
   /** Files whose disk copy changed under unsaved edits, or whose save was refused (E3). */
   let conflict = $state<Record<string, boolean>>({})
+  /** Source files (`isCode`) open in the editor only; these could not be loaded into it, so they are shown read-only. */
+  let codeFailed = $state<Record<string, boolean>>({})
+  const starting = new Set<string>()
   /** Asking before unsaved edits are lost: closing one tab, or the window. */
   let pending = $state<{ kind: 'close'; path: string } | { kind: 'quit' } | null>(null)
   let replacing = ''
@@ -280,7 +283,7 @@
       { title: 'New folder…', run: () => void newItem(here(), true) },
       !!f && { title: 'Find in document', key: 'Ctrl+F', run: findInDocument },
       { title: 'Search in workspace', key: 'Ctrl+Shift+F', run: () => void showSearch() },
-      !!f && { title: f && editing[f] ? 'Read this file' : 'Edit this file', key: 'Ctrl+E', run: toggleEdit },
+      !!f && !isCode(f) && { title: f && editing[f] ? 'Read this file' : 'Edit this file', key: 'Ctrl+E', run: toggleEdit },
       !!f && buffers.has(f) && { title: 'Save', key: 'Ctrl+S', run: () => void save(f!) },
       anyDirty && { title: 'Save all', run: () => void saveAll() },
       !!active && { title: 'Close tab', key: 'Ctrl+W', run: () => active && close(active) },
@@ -312,22 +315,37 @@
 
   async function startEdit(path: string) {
     if (!buffers.has(path)) {
-      const [lib, comp] = await Promise.all([import('./lib/editor'), import('./Editor.svelte')])
-      editorLib = lib
-      Ed ??= comp.default
-      let src: { text: string; hash: string }
+      if (starting.has(path)) return
+      starting.add(path)
       try {
-        codeLangs.set(path, await lib.codeLanguage(path).catch(() => null))
-        src = await api.loadSource(path)
-      } catch (e) {
-        say(`Cannot edit: ${e}`)
-        return
+        const [lib, comp] = await Promise.all([import('./lib/editor'), import('./Editor.svelte')])
+        editorLib = lib
+        Ed ??= comp.default
+        let src: { text: string; hash: string }
+        try {
+          codeLangs.set(path, await lib.codeLanguage(path).catch(() => null))
+          src = await api.loadSource(path)
+        } catch (e) {
+          if (isCode(path)) codeFailed[path] = true
+          say(`Cannot edit: ${e}`)
+          return
+        }
+        // Closed while loading.
+        if (!session.tabs.includes(path)) return
+        buffers.set(path, { path, state: newState(path, src.text), base: src.hash, scroll: session.scroll[path] ?? 1 })
+        latest.set(path, src.text)
+      } finally {
+        starting.delete(path)
       }
-      buffers.set(path, { path, state: newState(path, src.text), base: src.hash, scroll: session.scroll[path] ?? 1 })
-      latest.set(path, src.text)
     }
     editing[path] = true
   }
+
+  // Source files have no reading view of their own: they open in the editor.
+  $effect(() => {
+    const f = activeFile
+    if (f && isCode(f) && !editing[f] && !codeFailed[f]) void startEdit(f)
+  })
 
   function newState(path: string, text: string) {
     const lib = editorLib!
@@ -347,6 +365,7 @@
   function toggleEdit() {
     if (!activeFile) return
     if (/\.(png|jpe?g|webp|gif|bmp|avif|ico|pdf)$/i.test(activeFile)) return say('Pictures and PDFs open for reading only.')
+    if (isCode(activeFile) && !codeFailed[activeFile]) return say('Source files open in the editor only.')
     if (editing[activeFile]) editing[activeFile] = false
     else void startEdit(activeFile)
   }
@@ -456,6 +475,7 @@
     delete dirty[path]
     delete preview[path]
     delete conflict[path]
+    delete codeFailed[path]
     if (active === path) session.active = session.tabs[Math.min(i, session.tabs.length - 1)] ?? null
   }
 
@@ -735,7 +755,7 @@
       { label: 'Find in document', key: 'Ctrl+F', off: !f, run: findInDocument },
       { label: 'Search in workspace', key: 'Ctrl+Shift+F', run: () => void showSearch() },
       'sep',
-      { label: f && editing[f] ? 'Read this file' : 'Edit this file', key: 'Ctrl+E', off: !f, run: toggleEdit },
+      { label: f && editing[f] ? 'Read this file' : 'Edit this file', key: 'Ctrl+E', off: !f || isCode(f), run: toggleEdit },
     ]
   }
 
@@ -1186,7 +1206,7 @@
       <button class="tabs-btn" onclick={diffButton} title={activeFile && dirty[activeFile] ? 'Compare the saved file with your unsaved edits' : activeFile ? 'Compare this file with another file or text' : 'Compare two files or texts'}>Diff</button>
       <button class="tabs-btn" class:on={sidebar === 'git'} onclick={() => (sidebar === 'git' ? (sidebar = 'files') : void showGit())} title="Changes, commit and sync">Git</button>
       <button class="tabs-btn" onclick={() => (termOpen ? (termOpen = false) : void showTerminal())} title="Terminal (Ctrl+`)">Terminal</button>
-      {#if activeFile}
+      {#if activeFile && !(isCode(activeFile) && !codeFailed[activeFile])}
         <span class="tools-sep" aria-hidden="true">|</span>
         <button class="mode-switch" role="switch" aria-checked={!!editing[activeFile]} onclick={toggleEdit} title="Viewer or editor (Ctrl+E)">
           <span class:on={!editing[activeFile]}>Viewer</span>
@@ -1341,6 +1361,8 @@
               </div>
             {/if}
           </div>
+        {:else if activeFile && isCode(activeFile) && !codeFailed[activeFile]}
+          <!-- A source file on its way into the editor. -->
         {:else if activeFile}
           <!-- An error while drawing one file must not leave the pane dead for the next: keyed by file, so changing document starts clean. -->
           {#key activeFile}
