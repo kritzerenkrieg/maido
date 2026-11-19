@@ -331,16 +331,23 @@ async fn fs_paste(window: WebviewWindow, windows: State<'_, Windows>, paths: Vec
 }
 
 /// The Edit menu's clipboard (N2): WebKitGTK does not let a page read it.
+/// Never on the main thread: on X11, text copied inside maido is owned by
+/// its own GTK window, which answers the request on the main thread, so a
+/// read waiting there froze the window until the request timed out.
 #[tauri::command]
-fn clipboard_read(app: AppHandle) -> Result<String, String> {
+async fn clipboard_read(app: AppHandle) -> Result<String, String> {
     use tauri_plugin_clipboard_manager::ClipboardExt;
-    app.clipboard().read_text().map_err(|e| e.to_string())
+    tauri::async_runtime::spawn_blocking(move || app.clipboard().read_text().map_err(|e| e.to_string()))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn clipboard_write(app: AppHandle, text: String) -> Result<(), String> {
+async fn clipboard_write(app: AppHandle, text: String) -> Result<(), String> {
     use tauri_plugin_clipboard_manager::ClipboardExt;
-    app.clipboard().write_text(text).map_err(|e| e.to_string())
+    tauri::async_runtime::spawn_blocking(move || app.clipboard().write_text(text).map_err(|e| e.to_string()))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 /// File > Open folder (N2): pick a folder in the system dialog and show it in
