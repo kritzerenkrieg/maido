@@ -4,7 +4,7 @@
   import { onDestroy, tick } from 'svelte'
   import { DOWNLOAD_ICON, closeExportMenu, openExportMenu } from './lib/diagram-export'
   import { diagram } from './lib/mermaid'
-  import { onThemeChange } from './lib/theme'
+  import { isDark, onThemeChange } from './lib/theme'
 
   /** `path` is the file, for exports (L3). */
   let { source, path }: { source: string; path: string } = $props()
@@ -89,6 +89,13 @@
   function reset() {
     fit()
   }
+
+  /** The diagram as it prints: whole, fitted to the paper, light (L2). */
+  let printSvg = $state('')
+  export async function preparePrint(): Promise<void> {
+    printSvg = isDark() ? await diagram(source, 'default').catch(() => svg) : svg
+    await tick()
+  }
 </script>
 
 <div class="mmd-page" bind:this={page} {onwheel} {onpointerdown} {onpointermove} onpointerup={() => (drag = null)} ondblclick={reset} role="presentation">
@@ -105,4 +112,7 @@
     <button onclick={() => (scale = Math.max(0.1, scale / 1.25))} title="Zoom out">−</button>
     <button class="diagram-download" onclick={download} title="Download this diagram" aria-label="Download this diagram">{@html DOWNLOAD_ICON}</button>
   </div>
+  {#if printSvg && !error}
+    <div class="mmd-print print-only">{@html printSvg}</div>
+  {/if}
 </div>

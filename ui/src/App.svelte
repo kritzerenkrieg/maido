@@ -262,14 +262,19 @@
 
   // ---- Export (L1–L3) ----
 
-  function isMarkdown(path: string) {
-    return /\.(md|markdown|tex|latex)$/i.test(path)
+  /** Documents, diagrams and PDFs print; pictures, source and text files do not. */
+  function printable(path: string) {
+    return /\.(md|markdown|tex|latex|mmd|mermaid|pdf)$/i.test(path)
   }
 
   async function printDoc() {
-    if (!activeFile || !isMarkdown(activeFile)) return say('Only Markdown and LaTeX documents print.')
-    await doc?.prepareExport()
-    await api.printPage().catch((e) => say(`Not printed: ${e}`))
+    if (!activeFile || !printable(activeFile)) return say('Only documents, diagrams and PDFs print.')
+    try {
+      await doc?.prepareExport()
+      await api.printPage()
+    } catch (e) {
+      say(`Not printed: ${e}`)
+    }
   }
 
   function commands(): Command[] {
@@ -289,7 +294,7 @@
       !!active && { title: 'Close tab', key: 'Ctrl+W', run: () => active && close(active) },
       !!f && { title: 'Compare this file with…', run: () => void openDiff({ mode: 'file', path: f!, text: '' }, { mode: 'file', path: '', text: '' }) },
       { title: 'New diff', run: () => void openDiff({ mode: 'file', path: '', text: '' }, { mode: 'file', path: '', text: '' }) },
-      !!f && isMarkdown(f) && { title: 'Print as PDF…', key: 'Ctrl+P', run: () => void printDoc() },
+      !!f && printable(f) && { title: 'Print…', key: 'Ctrl+P', run: () => void printDoc() },
       { title: termOpen ? 'Hide terminal' : 'Show terminal', key: 'Ctrl+`', run: () => (termOpen ? (termOpen = false) : void showTerminal()) },
       { title: 'New terminal', key: 'Ctrl+Shift+`', run: () => void showTerminal(true) },
       { title: 'Move terminal panel ' + (session.termPos === 'right' ? 'below' : 'to the right'), run: () => (session.termPos = session.termPos === 'right' ? 'bottom' : 'right') },
@@ -734,7 +739,7 @@
       { label: 'Save', key: 'Ctrl+S', off: !f || !dirty[f], run: () => f && void save(f) },
       { label: 'Save all', off: !anyDirty, run: () => void saveAll() },
       'sep',
-      { label: 'Print as PDF…', key: 'Ctrl+P', off: !f || !isMarkdown(f), run: () => void printDoc() },
+      { label: 'Print…', key: 'Ctrl+P', off: !f || !printable(f), run: () => void printDoc() },
       'sep',
       { label: 'Close tab', key: 'Ctrl+W', off: !active, run: () => active && close(active) },
       { label: 'Close window', run: closeWindow },

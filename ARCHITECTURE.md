@@ -80,6 +80,8 @@ As built (Phase 4): comrak's `$…$`, `$$…$$` and `` $`…`$ `` syntax and ```
 
 **Export.** (L1) PDF: the system print dialog ("Print to file") with a print stylesheet that shows the document alone, all of it, in light colours; with a dark theme, diagrams get a light copy that only prints. Every export goes through Rust, which opens the save dialog (starting in the document's folder) and writes only to the path chosen there.
 
+Diagram files and PDFs print too (Ctrl+P, File > Print). A `.mmd` page prints the whole diagram fitted to the sheet (a light copy with a dark theme), not the zoomed view. A PDF on screen has only the pages near the view drawn, so before printing every page is drawn once more, one at a time, at 2.5 px per point (about 180 dpi, within the 8-million-pixel limit), into a PNG kept as an object URL; the print stylesheet shows those pictures, one per sheet, and hides the screen's pages. The pictures are freed when the PDF reloads or its tab closes. Printing is raster: the printed text is not selectable in a PDF printed to a file.
+
 **Themes and reading settings.** (L4, L5) System, Light or Dark: `data-theme` on the page root picks the colour variables; code colours (syntect's CSS, scoped the same way), diagrams and terminals follow. Dark is screen-only, so printing is always light. Font size (a percentage, 70–200, Ctrl+= / Ctrl+- / Ctrl+0), font (sans, serif) and the four page margins (whole px) are CSS variables; font size applies to the editor too. Settings are global.
 
 ## Editor

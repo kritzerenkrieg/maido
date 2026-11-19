@@ -30,7 +30,7 @@ Most of what an agent or a CLI writes ends up as Markdown. maido is for reading 
 - **Find your way.** Quick open (`Ctrl+O`), a command palette (`Ctrl+Shift+P`), full-text search across the workspace, and find in the document with `3 of 12` counting and jump to a match by number.
 - **Compare.** A diff window for files or pasted text, side by side or inline, also rendered for Markdown.
 - **Follow mode.** Switch to each document as it changes on disk, to watch an agent work.
-- **Print and export** to PDF.
+- **Print and export** to PDF: documents, diagram files and PDFs.
 
 ### Small
 - **Light on memory.** Tauri 2 and Svelte 5, with parsing, highlighting, search and terminals done in Rust. Mermaid, KaTeX, the editor and the terminal load only when used.
@@ -57,7 +57,7 @@ maido README.md    # open a file
 | `` Ctrl+` `` | Show or hide the terminal |
 | `` Ctrl+Shift+` `` | New terminal |
 | `Ctrl+=` `Ctrl+-` `Ctrl+0` | Font size: bigger, smaller, normal |
-| `Ctrl+P` | Print as PDF |
+| `Ctrl+P` | Print, or print to PDF |
 | `Ctrl+W` | Close the tab |
 
 Every command and shortcut is in the [guide](GUIDE.md).
