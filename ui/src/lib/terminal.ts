@@ -54,19 +54,22 @@ export class Session {
     this.term.onTitleChange(opts.ontitle)
     // Ctrl+Shift+C / V copy and paste, as in other Linux and Windows terminals;
     // plain Ctrl+C stays the shell's interrupt. macOS uses Cmd+C / V, which
-    // the webview already handles.
+    // the webview already handles. Returning false only stops xterm.js: the
+    // key's default must be cancelled too, or WebKit also pastes into
+    // xterm's text area and the text arrives twice. The clipboard goes
+    // through Rust, as the Edit menu's does (WebKitGTK lets a page read it
+    // only sometimes).
     this.term.attachCustomKeyEventHandler((e) => {
-      if (e.type !== 'keydown' || !e.ctrlKey || !e.shiftKey || e.altKey) return true
+      if (!e.ctrlKey || !e.shiftKey || e.altKey || (e.code !== 'KeyC' && e.code !== 'KeyV')) return true
+      e.preventDefault()
+      if (e.type !== 'keydown' || e.repeat) return false
       if (e.code === 'KeyC') {
         const text = this.term.getSelection()
-        if (text) void navigator.clipboard.writeText(text).catch(() => {})
-        return false
+        if (text) void invoke('clipboard_write', { text }).catch(() => {})
+      } else {
+        void invoke<string>('clipboard_read').then((t) => t && !this.exited && this.term.paste(t), () => {})
       }
-      if (e.code === 'KeyV') {
-        void navigator.clipboard.readText().then((t) => t && this.term.paste(t), () => {})
-        return false
-      }
-      return true
+      return false
     })
     this.term.registerLinkProvider({ provideLinks: (y, done) => void this.links(y).then(done, () => done(undefined)) })
   }

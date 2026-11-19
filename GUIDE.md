@@ -70,6 +70,7 @@ Each folder of the workspace sits under its own tinted header; click it to fold 
 | `` Ctrl+Shift+` `` | New terminal session |
 | `Ctrl`+click on a path | Open it in maido (`file.md:42` scrolls to that line) |
 | `Ctrl`+click on a URL | Open it in the browser |
+| `Ctrl+Shift+C` / `Ctrl+Shift+V` | Copy the selection / paste |
 
 Inside a terminal `Ctrl+W` and `Ctrl+Tab` go to the shell, not to maido. A `bash`/`sh` code block in a document has a *Send to terminal* button that pastes without pressing `Enter`.
 
