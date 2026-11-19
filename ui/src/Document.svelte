@@ -42,6 +42,8 @@
   let changed = $state(new Set<string>())
   let error = $state('')
   let container = $state<HTMLElement>()
+  let pdfPage = $state<ReturnType<typeof PdfPage>>()
+  let mmdPage = $state<ReturnType<typeof MermaidPage>>()
 
   $effect(() => {
     const p = path
@@ -234,6 +236,8 @@
 
   /** Every block highlighted, typeset and drawn (export and printing need them all, L2). */
   export async function prepareExport(): Promise<HTMLElement | null> {
+    if (view?.kind === 'pdf') return void (await pdfPage?.preparePrint()), null
+    if (view?.kind === 'mermaid') return void (await mmdPage?.preparePrint()), null
     const els = blockElements()
     for (const el of els) observer.unobserve(el)
     await Promise.all(els.map((el) => enhance(el)))
@@ -303,7 +307,7 @@
       </article>
     {/key}
   {:else if view?.kind === 'mermaid'}
-    <MermaidPage source={view.source} {path} />
+    <MermaidPage bind:this={mmdPage} source={view.source} {path} />
   {:else if view?.kind === 'text'}
     <pre class="raw">{view.text}</pre>
   {:else if view?.kind === 'code'}
@@ -313,7 +317,7 @@
   {:else if view?.kind === 'image'}
     <div class="image-page"><img src="{convertFileSrc(view.path)}?v={version}" alt={path.slice(path.lastIndexOf('/') + 1)} /></div>
   {:else if view?.kind === 'pdf'}
-    <PdfPage {path} {version} />
+    <PdfPage bind:this={pdfPage} {path} {version} />
   {:else if view?.kind === 'binary'}
     <p class="doc-note">Binary file: not shown.</p>
   {/if}

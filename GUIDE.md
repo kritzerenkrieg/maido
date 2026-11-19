@@ -22,7 +22,7 @@ From a shell, `maido .`, `maido ~/notes` and `maido README.md` open a folder or 
 | `Ctrl+S` | Save (refused if the file changed on disk since you opened it) |
 | `Ctrl+W` | Close the tab (asks first when it has unsaved edits) |
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | Next / previous tab |
-| `Ctrl+P` | Print as PDF (Markdown and LaTeX documents) |
+| `Ctrl+P` | Print, or print to a PDF file (documents, diagram files and PDFs) |
 | `Ctrl+=` `Ctrl+-` `Ctrl+0` | Text size: bigger, smaller, normal |
 | Middle click on a tab | Close it |
 | Mouse wheel over the tabs | Scroll the tab row |
@@ -76,7 +76,7 @@ Inside a terminal `Ctrl+W` and `Ctrl+Tab` go to the shell, not to maido. A `bash
 
 ## Menus
 
-**File:** New file, New folder, Open file, Open folder, Add folder to workspace, Open recent (a side menu of the last folders; each shows its two parent folders and `…/` when more lie above), Save, Save all, Print as PDF, Close tab, Close window.
+**File:** New file, New folder, Open file, Open folder, Add folder to workspace, Open recent (a side menu of the last folders; each shows its two parent folders and `…/` when more lie above), Save, Save all, Print, Close tab, Close window.
 **Edit:** Undo, Redo, Cut, Copy, Paste, Find in document, Search in workspace, Edit/Read this file. Edit acts on whatever had the focus: the editor, a text field, a terminal (paste) or the selected text of the page.
 **Settings:** theme, font, text size, page margins, remote images, terminal scrollback and renderer, update checks.
 
@@ -100,7 +100,7 @@ Inside a terminal `Ctrl+W` and `Ctrl+Tab` go to the shell, not to maido. A `bash
 | Close tab | `Ctrl+W` |
 | Compare this file with… | |
 | New diff | |
-| Print as PDF… | `Ctrl+P` |
+| Print… | `Ctrl+P` |
 | Show terminal / Hide terminal | `` Ctrl+` `` |
 | New terminal | `` Ctrl+Shift+` `` |
 | Move terminal panel below / to the right | |
@@ -140,6 +140,8 @@ In the palette `↑` `↓` choose, `Enter` opens, `Escape` closes.
 | Right click | All of the above as a menu |
 
 The toolbar at the bottom right shows the page (type a number and `Enter` to go there) and the zoom.
+
+Diagram files (`.mmd`, `.mermaid`) print as the whole diagram fitted to the sheet, light even with a dark theme.
 
 ### LaTeX
 
