@@ -192,6 +192,8 @@ export const api = {
   checkUpdate: () => invoke<UpdateInfo | null>('check_update'),
   /** Installs the update found by `checkUpdate` and restarts maido. */
   installUpdate: () => invoke<void>('install_update'),
+  /** Whether this window has unsaved edits (an update restarts every window). */
+  setUnsaved: (unsaved: boolean) => invoke<void>('set_unsaved', { unsaved }),
   // The Explorer's file actions (N4); paths are workspace-relative.
   fsCreate: (dir: string, name: string, folder: boolean) => invoke<string>('fs_create', { dir, name, folder }),
   fsRename: (path: string, name: string) => invoke<string>('fs_rename', { path, name }),

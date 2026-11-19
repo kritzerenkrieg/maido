@@ -864,6 +864,7 @@ pub fn run() {
                     return;
                 }
                 app.state::<Terminals>().close_window(window.label());
+                app.state::<Updates>().closed(window.label());
                 let windows = app.state::<Windows>();
                 let mut map = windows.0.lock().unwrap();
                 map.remove(window.label());
@@ -922,6 +923,7 @@ pub fn run() {
             git_head_text,
             update::check_update,
             update::install_update,
+            update::set_unsaved,
         ])
         .run(context)
         .expect("error while running maido");

@@ -19,6 +19,8 @@ use std::time::{Duration, Instant};
 const TIMEOUT: Duration = Duration::from_secs(120);
 /// At most this many lines of the log come back with an error.
 const ERROR_LINES: usize = 24;
+/// Of what TeX prints, only this much of the end is kept (for an error with no log).
+const OUTPUT_TAIL: usize = 64 * 1024;
 
 /// One compile at a time per file: TeX's auxiliary files are shared.
 #[derive(Default)]
@@ -105,11 +107,69 @@ fn search_path(var: &str, dir: &Path) -> OsString {
     std::env::join_paths(parts).unwrap_or_else(|_| dir.as_os_str().to_owned())
 }
 
+/// A command for the program at `exe`, with its folder first on the PATH:
+/// found outside the PATH (TinyTeX's `~/.local/bin`, say), `latexmk` must
+/// still find `pdflatex` and the rest beside it by name.
+fn program_command(exe: &Path) -> Command {
+    let mut c = Command::new(exe);
+    if let Some(dir) = exe.parent() {
+        let mut parts = vec![dir.to_path_buf()];
+        if let Some(old) = std::env::var_os("PATH") {
+            parts.extend(std::env::split_paths(&old));
+        }
+        if let Ok(path) = std::env::join_paths(parts) {
+            c.env("PATH", path);
+        }
+    }
+    c
+}
+
+/// The folders under the source's that `\include{dir/file}` writes an
+/// `.aux` into: TeX does not make them in its output folder itself, and
+/// stops when one is missing. Only plain relative paths inside it.
+fn include_dirs(text: &str) -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    for line in text.lines() {
+        let code = line.split('%').next().unwrap_or("");
+        let mut rest = code;
+        while let Some(i) = rest.find("\\include{") {
+            rest = &rest[i + "\\include{".len()..];
+            let Some(end) = rest.find('}') else { break };
+            let parent = Path::new(rest[..end].trim()).parent().map(Path::to_path_buf).unwrap_or_default();
+            let plain = parent.components().all(|c| matches!(c, std::path::Component::Normal(_)));
+            if plain && !parent.as_os_str().is_empty() && !dirs.contains(&parent) {
+                dirs.push(parent);
+            }
+            rest = &rest[end..];
+        }
+    }
+    dirs
+}
+
+/// Stop the compile and everything it started (`latexmk` runs the engine,
+/// which would go on writing into the output folder).
+fn kill_all(child: &mut std::process::Child) {
+    #[cfg(unix)]
+    // SAFETY: the child leads its own process group (see `compile`); this
+    // signals that group only.
+    unsafe {
+        libc::kill(-(child.id() as i32), libc::SIGKILL);
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let _ = Command::new("taskkill").args(["/T", "/F", "/PID", &child.id().to_string()]).creation_flags(CREATE_NO_WINDOW).status();
+    }
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
 /// The command that compiles `file` (in `out`, its own folder) for a source in `src_dir`.
 fn command(file: &Path, out: &Path, src_dir: &Path, program: Program) -> Result<Command, String> {
     let interaction = ["-interaction=nonstopmode", "-halt-on-error", "-file-line-error"];
     let mut cmd = if let Some(latexmk) = find("latexmk") {
-        let mut c = Command::new(latexmk);
+        let mut c = program_command(&latexmk);
         c.arg("-norc")
             .arg(match program {
                 Program::Pdf => "-pdf",
@@ -122,11 +182,11 @@ fn command(file: &Path, out: &Path, src_dir: &Path, program: Program) -> Result<
             .arg(format!("-outdir={}", out.display()));
         c
     } else if let Some(tectonic) = find("tectonic") {
-        let mut c = Command::new(tectonic);
+        let mut c = program_command(&tectonic);
         c.args(["--chatter", "minimal", "--keep-logs", "--outdir"]).arg(out).arg("-Z").arg(format!("search-path={}", src_dir.display()));
         c
     } else if let Some(tex) = find(program.binary()) {
-        let mut c = Command::new(tex);
+        let mut c = program_command(&tex);
         c.arg("-no-shell-escape").args(interaction).arg(format!("-output-directory={}", out.display()));
         c
     } else {
@@ -145,6 +205,12 @@ fn command(file: &Path, out: &Path, src_dir: &Path, program: Program) -> Result<
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    // Its own process group, so a timeout stops the engine `latexmk` started too.
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
+    }
     Ok(cmd)
 }
 
@@ -161,19 +227,31 @@ pub fn compile(compiler: &Compiler, src: &Path, text: &str, out: &Path) -> Resul
     let log = out.join(format!("{stem}.log"));
     // A PDF left by an earlier compile must not pass for this one's.
     let _ = std::fs::remove_file(&pdf);
+    for dir in include_dirs(text) {
+        let _ = std::fs::create_dir_all(out.join(dir));
+    }
 
     let src_dir = src.parent().unwrap_or(Path::new("."));
     let mut child = command(&file, out, src_dir, program(text))?.spawn().map_err(|e| format!("Could not start TeX: {e}"))?;
-    // Read the pipes on threads, so a chatty TeX never blocks on a full pipe.
+    // Read the pipes on threads, so a chatty TeX never blocks on a full
+    // pipe; only the end of what it prints is kept.
     let pipe = |r: Option<Box<dyn std::io::Read + Send>>| {
         std::thread::spawn(move || {
-            let mut s = String::new();
+            let mut kept = Vec::new();
             if let Some(mut r) = r {
-                let mut buf = Vec::new();
-                let _ = r.read_to_end(&mut buf);
-                s = String::from_utf8_lossy(&buf).into_owned();
+                let mut chunk = [0u8; 8192];
+                while let Ok(n) = r.read(&mut chunk) {
+                    if n == 0 {
+                        break;
+                    }
+                    kept.extend_from_slice(&chunk[..n]);
+                    if kept.len() > 2 * OUTPUT_TAIL {
+                        kept.drain(..kept.len() - OUTPUT_TAIL);
+                    }
+                }
             }
-            s
+            let start = kept.len().saturating_sub(OUTPUT_TAIL);
+            String::from_utf8_lossy(&kept[start..]).into_owned()
         })
     };
     let stdout = pipe(child.stdout.take().map(|s| Box::new(s) as Box<dyn std::io::Read + Send>));
@@ -183,8 +261,7 @@ pub fn compile(compiler: &Compiler, src: &Path, text: &str, out: &Path) -> Resul
         match child.try_wait() {
             Ok(Some(status)) => break status,
             Ok(None) if start.elapsed() > TIMEOUT => {
-                let _ = child.kill();
-                let _ = child.wait();
+                kill_all(&mut child);
                 return Err(format!("TeX ran for more than {} s and was stopped.", TIMEOUT.as_secs()));
             }
             Ok(None) => std::thread::sleep(Duration::from_millis(40)),
@@ -242,6 +319,30 @@ mod tests {
         assert_eq!(program("% !TEX program = pdflatex\n\\usepackage{fontspec}"), Program::Pdf);
         assert_eq!(program("\\usepackage{fontspec}\n"), Program::Xe);
         assert_eq!(program("% \\usepackage{fontspec}\n"), Program::Pdf);
+    }
+
+    #[test]
+    fn folders_for_included_files() {
+        let text = "\\include{intro}\n\\include{chapters/one} \\include{chapters/two}\n% \\include{old/x}\n\\include{../up/x}\\include{/abs/x}\\include{a/b/c}";
+        assert_eq!(include_dirs(text), [PathBuf::from("chapters"), PathBuf::from("a/b")]);
+    }
+
+    /// Runs only where TeX is installed.
+    #[test]
+    fn compiles_with_a_nested_include() {
+        if find("latexmk").is_none() && find("tectonic").is_none() && find("pdflatex").is_none() {
+            return;
+        }
+        let dir = std::env::temp_dir().join(format!("maido-tex-include-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("src/chapters")).unwrap();
+        std::fs::write(dir.join("src/chapters/one.tex"), "Chapter one.").unwrap();
+        let text = "\\documentclass{article}\n\\begin{document}\n\\include{chapters/one}\n\\end{document}\n";
+        let src = dir.join("src/main.tex");
+        std::fs::write(&src, text).unwrap();
+        let pdf = compile(&Compiler::default(), &src, text, &dir.join("out"));
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(pdf.unwrap().starts_with(b"%PDF"));
     }
 
     #[test]
