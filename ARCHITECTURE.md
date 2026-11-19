@@ -174,7 +174,9 @@ Where it goes (Phase 5, same sitting, total PSS): a bare Tauri 2.12 window showi
 
 Packages (M1) come from Tauri's bundler: `pnpm release` builds `target/release/bundle/deb/maido_<version>_amd64.deb` (7.5 MB; depends on the system's `libwebkit2gtk-4.1-0` and `libgtk-3-0`, installs `/usr/bin/maido`) and `…/appimage/maido_<version>_amd64.AppImage` (107 MB: WebKitGTK and GTK inside). Both carry an app-menu entry (`src-tauri/maido.desktop`, running `maido %F`) that opens Markdown files (`text/markdown`), and maido's logo: the icons in `src-tauri/icons` are made from `logo.png` with `pnpm tauri icon src-tauri/icons/logo.png` (then delete the `android` and `ios` folders it adds). With no path, maido opens the folder it was started in (M2). The AppImage's launcher (linuxdeploy's AppRun) runs maido inside its mount: maido reads command-line paths (and sends them to a running maido) from the folder it was launched from (`$OWD`), then returns into the mount before the window opens, because the bundled WebKit finds its helper processes by a path relative to it.
 
-Updates (M3) use Tauri's updater plugin, registered only when the build's configuration names an update server and public key; `src-tauri/release.conf.json` (not in the repository until M4 is answered) adds them and `bundle.createUpdaterArtifacts`, and the build is signed with `TAURI_SIGNING_PRIVATE_KEY`. The page asks Rust (`update.rs`) at startup, at most once a day (`checkUpdates`, `updateCheckedAt` in settings), or when "Check for updates" is run. A newer release shows a banner: an AppImage downloads it, checks the signature, replaces itself and restarts; a `.deb` (the bundle type is written into the binary by the bundler) only offers the package's download link. The release server serves `latest.json`:
+Updates (M3) use Tauri's updater plugin, registered only when the build's configuration names an update server and public key. The release workflow (`.github/workflows/release.yml`) writes them into `src-tauri/release.conf.json` (not in the repository) and builds with `--config` on it, when the repository has the variable `UPDATER_PUBKEY` (the public key) and the secret `TAURI_SIGNING_PRIVATE_KEY` (with `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if the key has one); it also sets `bundle.createUpdaterArtifacts`, so each package gets a `.sig`, and macOS builds the `.app.tar.gz` the updater installs beside the `.dmg`. The update server is the GitHub release itself: `https://github.com/kritzerenkrieg/maido/releases/latest/download/latest.json`, which only ever points at a published release. The platforms build in parallel, so the publish job, once all have uploaded, writes `latest.json` from the release's `.sig` files and uploads it before publishing (`includeUpdaterJson` is off in tauri-action, whose jobs would overwrite each other's). Without the key and variable, releases build as before and never check. A key pair is made once with `pnpm tauri signer generate -w ~/.tauri/maido.key`; the private key stays with whoever releases maido.
+
+The page asks Rust (`update.rs`) at startup, at most once a day (`checkUpdates`, `updateCheckedAt` in settings), or when "Check for updates" is run. A newer release shows a banner: an AppImage, the Windows installer's install and the macOS app download it, check the signature, replace themselves and restart (on Windows the installer closes and restarts maido); a `.deb` or `.rpm` (the bundle type is written into the binary by the bundler) only offers the package's download link, since installing it needs root. Settings shows the running version. `latest.json`, as the publish job writes it (each platform present only if its package was signed):
 
 ```json
 {
@@ -183,7 +185,10 @@ Updates (M3) use Tauri's updater plugin, registered only when the build's config
   "pub_date": "2026-10-22T00:00:00Z",
   "platforms": {
     "linux-x86_64-appimage": { "url": "https://…/maido_0.1.1_amd64.AppImage", "signature": "<contents of the .AppImage.sig>" },
-    "linux-x86_64-deb": { "url": "https://…/maido_0.1.1_amd64.deb", "signature": "<contents of the .deb.sig>" }
+    "linux-x86_64": { "…": "the same as linux-x86_64-appimage" },
+    "linux-x86_64-deb": { "url": "https://…/maido_0.1.1_amd64.deb", "signature": "<contents of the .deb.sig>" },
+    "windows-x86_64-nsis": { "url": "https://…/maido_0.1.1_x64-setup.exe", "signature": "…" },
+    "darwin-aarch64-app": { "url": "https://…/maido_universal.app.tar.gz", "signature": "…" }
   }
 }
 ```

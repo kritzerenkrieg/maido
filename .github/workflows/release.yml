@@ -3,6 +3,11 @@ name: release
 # A tag push (v*) builds that tag. To build one again by hand: Actions > release > Run workflow,
 # with the tag name. Either way the release is created once, every platform uploads into it,
 # and it is published only when all of them succeeded.
+#
+# Updates (M3): with the repository variable UPDATER_PUBKEY and the secret TAURI_SIGNING_PRIVATE_KEY
+# (and TAURI_SIGNING_PRIVATE_KEY_PASSWORD if the key has one) set, builds name the update server and
+# key (src-tauri/release.conf.json, written here) and sign their packages, and the publish job adds
+# latest.json, which installed copies read. Without them, releases build as before and never check.
 on:
   push:
     tags: ['v*']
@@ -43,7 +48,8 @@ jobs:
           - os: ubuntu-22.04
             args: --bundles deb,appimage
           - os: macos-latest
-            args: --target universal-apple-darwin --bundles dmg
+            # app: the .app.tar.gz the updater installs; dmg: the download for a first install.
+            args: --target universal-apple-darwin --bundles app,dmg
             rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
           - os: windows-latest
             args: --bundles nsis
@@ -81,20 +87,82 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Updater configuration
+        id: updater
+        shell: bash
+        env:
+          PUBKEY: ${{ vars.UPDATER_PUBKEY }}
+          HAS_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        run: |
+          if [ -z "$PUBKEY" ] || [ "$HAS_KEY" != true ]; then
+            echo "No UPDATER_PUBKEY or TAURI_SIGNING_PRIVATE_KEY: building without updates."
+            exit 0
+          fi
+          cat > src-tauri/release.conf.json <<EOF
+          {
+            "bundle": { "createUpdaterArtifacts": true },
+            "plugins": {
+              "updater": {
+                "pubkey": "$PUBKEY",
+                "endpoints": ["https://github.com/${{ github.repository }}/releases/latest/download/latest.json"]
+              }
+            }
+          }
+          EOF
+          echo "args=--config src-tauri/release.conf.json" >> "$GITHUB_OUTPUT"
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           # Keep it a draft: tauri-action publishes by default, which would put the release live
           # when the first platform finishes. The publish job does that once all have.
           releaseDraft: true
-          args: ${{ matrix.args }}
+          # Platforms finish in parallel and would overwrite each other's latest.json: the
+          # publish job writes it once, from every platform's signatures.
+          includeUpdaterJson: false
+          args: ${{ matrix.args }} ${{ steps.updater.outputs.args }}
 
   publish:
     needs: [create-release, build]
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+      ID: ${{ needs.create-release.outputs.release_id }}
     steps:
-      - env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh api -X PATCH "repos/${{ github.repository }}/releases/${{ needs.create-release.outputs.release_id }}" -F draft=false
+      - name: latest.json
+        run: |
+          # Each signed package (a .sig beside it) becomes a platform entry; none means no updates.
+          gh api "repos/$REPO/releases/$ID/assets" --paginate --jq '.[] | [.name, .url] | @tsv' > assets.tsv
+          entries='{}'
+          add() { # platform key, package name
+            sig=$(awk -F'\t' -v n="$2.sig" '$1 == n { print $2 }' assets.tsv)
+            [ -n "$sig" ] || return 0
+            signature=$(gh api -H 'Accept: application/octet-stream' "${sig#https://api.github.com/}")
+            url="https://github.com/$REPO/releases/download/$TAG/$2"
+            entries=$(jq -c --arg k "$1" --arg u "$url" --arg s "$signature" '. + {($k): {url: $u, signature: $s}}' <<<"$entries")
+          }
+          while IFS=$'\t' read -r name _; do
+            case "$name" in
+              *.AppImage) add linux-x86_64-appimage "$name"; add linux-x86_64 "$name" ;;
+              *.deb) add linux-x86_64-deb "$name" ;;
+              *-setup.exe) add windows-x86_64-nsis "$name"; add windows-x86_64 "$name" ;;
+              *.app.tar.gz) for a in x86_64 aarch64; do add "darwin-$a-app" "$name"; add "darwin-$a" "$name"; done ;;
+            esac
+          done < assets.tsv
+          if [ "$entries" = '{}' ]; then
+            echo "No signed packages: no latest.json."
+            exit 0
+          fi
+          notes=$(gh api "repos/$REPO/releases/$ID" --jq .body)
+          jq -n --arg v "${TAG#v}" --arg n "$notes" --arg d "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson p "$entries" \
+            '{version: $v, notes: $n, pub_date: $d, platforms: $p}' > latest.json
+          cat latest.json
+          curl -sSf -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Content-Type: application/json' \
+            --data-binary @latest.json "https://uploads.github.com/repos/$REPO/releases/$ID/assets?name=latest.json" > /dev/null
+
+      - run: gh api -X PATCH "repos/$REPO/releases/$ID" -F draft=false

@@ -88,7 +88,7 @@ export interface Settings {
   recentFolders: string[]
 }
 
-/** A newer release: `install` when maido can update itself (an AppImage), else `url` is the package. */
+/** A newer release: `install` when maido can update itself (AppImage, Windows, macOS), else `url` is the package. */
 export interface UpdateInfo {
   version: string
   notes: string
@@ -170,7 +170,7 @@ export const api = {
   renderMermaid: (source: string, theme: string) => invoke<string>('render_mermaid', { source, theme }),
   /** Rejects when this build has no update server. */
   checkUpdate: () => invoke<UpdateInfo | null>('check_update'),
-  /** Replaces the AppImage and restarts maido. */
+  /** Installs the update found by `checkUpdate` and restarts maido. */
   installUpdate: () => invoke<void>('install_update'),
   // The Explorer's file actions (N4); paths are workspace-relative.
   fsCreate: (dir: string, name: string, folder: boolean) => invoke<string>('fs_create', { dir, name, folder }),

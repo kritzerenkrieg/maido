@@ -78,7 +78,7 @@ Inside a terminal `Ctrl+W` and `Ctrl+Tab` go to the shell, not to maido. A `bash
 
 **File:** New file, New folder, Open file, Open folder, Add folder to workspace, Open recent (a side menu of the last folders; each shows its two parent folders and `…/` when more lie above), Save, Save all, Print, Close tab, Close window.
 **Edit:** Undo, Redo, Cut, Copy, Paste, Find in document, Search in workspace, Edit/Read this file. Edit acts on whatever had the focus: the editor, a text field, a terminal (paste) or the selected text of the page.
-**Settings:** theme, font, text size, page margins, remote images, terminal scrollback and renderer, update checks.
+**Settings:** theme, font, text size, page margins, remote images, terminal scrollback and renderer, update checks (with the version you run).
 
 ## Command palette
 
