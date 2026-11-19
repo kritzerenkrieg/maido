@@ -735,9 +735,16 @@ fn open_window(app: &AppHandle, root: PathBuf, initial: Option<String>) -> Resul
     Ok(())
 }
 
-/// `maido [path]`: with no path, the folder maido was started in (M2).
+/// `maido [path]`: with no path, the last folder opened, or the home folder (M2).
 fn open_from_args(app: &AppHandle, args: &[String], cwd: &Path) {
-    match workspace::target(args.get(1).map(String::as_str), cwd) {
+    let target = match args.get(1) {
+        Some(arg) => workspace::target(Some(arg), cwd),
+        None => {
+            let home = app.path().home_dir().unwrap_or_else(|_| cwd.to_path_buf());
+            Ok((workspace::last_folder(&app.state::<Sessions>().get(""), &home), None))
+        }
+    };
+    match target {
         Ok((root, file)) => {
             if let Err(e) = open_window(app, root, file) {
                 eprintln!("maido: {e}");

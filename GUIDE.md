@@ -11,7 +11,7 @@ Every command and shortcut. Shortcuts use `Ctrl` (maido is tested on Linux first
 | `Ctrl+N` | New file in the current folder |
 | `Ctrl+Shift+F` | Search the text of every file in the workspace |
 
-From a shell, `maido .`, `maido ~/notes` and `maido README.md` open a folder or a file; a second call opens a window in the running maido.
+From a shell, `maido .`, `maido ~/notes` and `maido README.md` open a folder or a file; a second call opens a window in the running maido. Plain `maido` (and the app menu) opens the last folder you had open, or your home folder if it is gone.
 
 ## Documents and tabs
 

@@ -290,7 +290,7 @@ pub fn is_readable(path: &Path) -> bool {
 }
 
 /// `maido <path>`: a folder opens as the workspace; a file opens with its
-/// folder as the workspace; nothing means the current folder.
+/// folder as the workspace. (With no path, see [`last_folder`].)
 pub fn target(arg: Option<&str>, cwd: &Path) -> Result<(PathBuf, Option<String>), String> {
     let path = cwd.join(arg.unwrap_or("."));
     let path = path.canonicalize().map_err(|e| format!("maido: {}: {e}", path.display()))?;
@@ -300,6 +300,18 @@ pub fn target(arg: Option<&str>, cwd: &Path) -> Result<(PathBuf, Option<String>)
     let root = path.parent().ok_or("maido: no parent folder")?.to_path_buf();
     let file = path.file_name().map(|f| f.to_string_lossy().into_owned());
     Ok((root, file))
+}
+
+/// `maido` with no path (M2): the last folder opened, from the settings'
+/// recent folders, or `home` when there is none or it is gone.
+pub fn last_folder(settings: &serde_json::Value, home: &Path) -> PathBuf {
+    settings
+        .get("recentFolders")
+        .and_then(|r| r.get(0))
+        .and_then(|f| f.as_str())
+        .map(PathBuf::from)
+        .filter(|p| p.is_absolute() && p.is_dir())
+        .unwrap_or_else(|| home.to_path_buf())
 }
 
 /// Tabs, scroll positions and toggles per workspace, kept by the frontend
@@ -377,6 +389,15 @@ mod tests {
         assert_eq!((root, file.as_deref()), (ws.root.join("docs"), Some("a.md")));
         assert_eq!(target(None, &dir).unwrap(), (ws.root.clone(), None));
         assert!(target(Some("nope"), &dir).is_err());
+
+        let home = Path::new("/home/someone");
+        let recent = |f: &str| serde_json::json!({ "recentFolders": [f, "/"] });
+        assert_eq!(last_folder(&recent(&ws.root.to_string_lossy()), home), ws.root);
+        // Gone, or not a folder: home, not the next one in the list.
+        assert_eq!(last_folder(&recent(&dir.join("gone").to_string_lossy()), home), home);
+        assert_eq!(last_folder(&recent(&ws.root.join("notes.txt").to_string_lossy()), home), home);
+        assert_eq!(last_folder(&recent("relative/dir"), home), home);
+        assert_eq!(last_folder(&serde_json::Value::Null, home), home);
         let _ = std::fs::remove_dir_all(dir);
     }
 
