@@ -7,7 +7,7 @@
   // print; the right-click menu has them all. `load` gives the bytes when
   // they do not come from the file itself (a compiled `.tex`).
   import { onDestroy, tick, untrack } from 'svelte'
-  import { api } from './lib/api'
+  import { api, onPinch } from './lib/api'
 
   interface Props {
     path: string
@@ -227,6 +227,11 @@
   }
 
   const zoomBy = (factor: number, x?: number, y?: number) => void setZoom(zoom * factor, x, y)
+
+  // A touchpad pinch (sent here by App.svelte), around the fingers.
+  $effect(() => {
+    if (scroller) return onPinch(scroller, () => zoom, (next, x, y) => void setZoom(next, x, y))
+  })
 
   function onwheel(e: WheelEvent) {
     if (!e.ctrlKey) return

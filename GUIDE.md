@@ -119,7 +119,7 @@ In the palette `↑` `↓` choose, `Enter` opens, `Escape` closes.
 | Files | How they open |
 |---|---|
 | `.md`, `.markdown` | Rendered; editable |
-| `.mmd`, `.mermaid` | One diagram with zoom and pan; editable |
+| `.mmd`, `.mermaid` | One diagram with zoom (wheel or touchpad pinch) and pan; editable |
 | `.tex`, `.latex` | Rendered as a document with KaTeX math, or compiled to PDF (see below); editable |
 | Source code (Rust, Python, C, JavaScript, JSON, shell and about thirty more; `</>` in the Explorer) | Opens in the editor, coloured |
 | PNG, JPEG, WebP, GIF, BMP, AVIF, ICO, SVG | Shown as a picture |
@@ -135,7 +135,7 @@ In the palette `↑` `↓` choose, `Enter` opens, `Escape` closes.
 | `Ctrl+A` | Select all (copying then takes the text of every page) |
 | `Ctrl+Down` / `Ctrl+Up` | Next / previous page |
 | Middle click | Autoscroll: move the pointer away from the mark to scroll, faster further away; click or press a key to stop (or hold the middle button, drag, and let go) |
-| `Ctrl+=` `Ctrl+-` `Ctrl+0`, `Ctrl`+wheel | Zoom in, out, back to the window's width |
+| `Ctrl+=` `Ctrl+-` `Ctrl+0`, `Ctrl`+wheel, touchpad pinch | Zoom in, out, back to the window's width |
 | `Ctrl+P` | Print every page |
 | Right click | All of the above as a menu |
 

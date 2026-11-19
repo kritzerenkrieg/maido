@@ -2554,6 +2554,7 @@ dependencies = [
  "grep-matcher",
  "grep-regex",
  "grep-searcher",
+ "gtk",
  "ignore",
  "notify",
  "notify-debouncer-full",

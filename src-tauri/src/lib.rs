@@ -733,13 +733,54 @@ fn open_window(app: &AppHandle, root: PathBuf, initial: Option<String>) -> Resul
     };
     let ws = new_workspace(app, root.clone(), initial);
     windows.0.lock().unwrap().insert(label.clone(), ws.clone());
-    WebviewWindowBuilder::new(app, &label, WebviewUrl::App("index.html".into()))
+    let window = WebviewWindowBuilder::new(app, &label, WebviewUrl::App("index.html".into()))
         .title(format!("{} — maido", folder_name(&root)))
         .inner_size(1200.0, 800.0)
         .build()
         .map_err(|e| e.to_string())?;
+    #[cfg(target_os = "linux")]
+    route_pinch(&window);
+    #[cfg(not(target_os = "linux"))]
+    let _ = window;
     ws.watch(app.clone(), label);
     Ok(())
+}
+
+#[cfg(target_os = "linux")]
+#[derive(Serialize, Clone)]
+struct Pinch {
+    /// `begin`, `update` or `end`.
+    phase: &'static str,
+    /// Since the pinch began: 2 is twice as big.
+    scale: f64,
+    x: f64,
+    y: f64,
+}
+
+/// A touchpad pinch goes to the page as a `pinch` event, never to WebKitGTK,
+/// which would magnify the whole window (menus, tabs and all) and leave it
+/// so. The page zooms the PDF or diagram under the pointer instead.
+#[cfg(target_os = "linux")]
+fn route_pinch(window: &WebviewWindow) {
+    let w = window.clone();
+    let _ = window.with_webview(move |webview| {
+        use gtk::prelude::*;
+        use tauri::Emitter;
+        webview.inner().connect_event(move |_, event| {
+            let Some(p) = event.downcast_ref::<gtk::gdk::EventTouchpadPinch>() else {
+                return gtk::glib::Propagation::Proceed;
+            };
+            let phase = match p.as_ref().phase as i32 {
+                gtk::gdk::ffi::GDK_TOUCHPAD_GESTURE_PHASE_BEGIN => "begin",
+                gtk::gdk::ffi::GDK_TOUCHPAD_GESTURE_PHASE_UPDATE => "update",
+                _ => "end",
+            };
+            let (x, y) = p.position();
+            let _ = w.emit_to(w.label(), "pinch", Pinch { phase, scale: p.scale(), x, y });
+            // Handled: WebKit's own handler (the signal's default) does not run.
+            gtk::glib::Propagation::Stop
+        });
+    });
 }
 
 /// `maido [path]`: with no path, the last folder opened, or the home folder (M2).
