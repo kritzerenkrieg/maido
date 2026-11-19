@@ -2,7 +2,7 @@
 
 maido's threat model.
 
-Last updated: 2026-10-22.
+Last updated: 2026-11-01.
 
 Documents and diagrams are untrusted input: a downloaded README must not be able to run code or reach the shell. The shell itself is full access to the machine by design; it is only ever driven by you.
 
@@ -29,6 +29,10 @@ Loading a remote image tells its server you opened the document (tracking pixels
 Document content can never start a terminal session or type into one. The "send to terminal" button on code blocks pastes only when you click it, and never presses Enter: you run the command yourself. (F5, D3)
 
 As built: the button is added by maido after sanitizing, so a document cannot make one or click one. It pastes only into a session you already opened and never starts one. Multi-line text is pasted only as a bracketed paste, which the shell keeps as one edit instead of running line by line; without bracketed paste nothing is pasted. A session takes input only from the window that opened it. Links in terminal output open only workspace files (checked in Rust) or http(s) URLs, and only on Ctrl+click.
+
+## LaTeX compiling
+
+A `.tex` file is only read (turned into Markdown in Rust) unless you switch its tab to PDF mode, which runs the TeX installed on your system on it (C4). A document cannot switch itself to PDF mode; the choice is yours, per file, and remembered for that file. TeX runs with shell escape off (`-no-shell-escape`; Tectonic has it off by default), so a document cannot start programs, and with `openout_any=p`, so it writes only into its output folder, which is in maido's cache, never the workspace. `latexmk` runs with `-norc`: a `latexmkrc` is Perl, and one placed beside a document would otherwise run as code. The source is copied into the cache and compiled there, so no rc file or `.aux` of the document's folder is read as the compile's own. TeX can still read any file you can (its default `openin_any`), so a hostile `.tex` could `\input` a private file and set it into the PDF; that PDF only goes to maido's view. Tectonic may download its TeX bundle on first use; that is Tectonic's own request. A compile is stopped after 120 s.
 
 ## Git
 
