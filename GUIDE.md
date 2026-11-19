@@ -123,8 +123,23 @@ In the palette `↑` `↓` choose, `Enter` opens, `Escape` closes.
 | `.tex`, `.latex` | Rendered as a document with KaTeX math (see below); editable |
 | Source code (Rust, Python, C, JavaScript, JSON, shell and about thirty more; `</>` in the Explorer) | Opens in the editor, coloured |
 | PNG, JPEG, WebP, GIF, BMP, AVIF, ICO, SVG | Shown as a picture |
-| PDF (up to 50 MB) | Drawn page by page |
+| PDF (up to 50 MB) | Drawn page by page; text can be selected and copied (see below) |
 | Any other text file | Plain text, editable |
+
+### PDF
+
+| Key or mouse | Action |
+|---|---|
+| Drag over text | Select it |
+| `Ctrl+C` | Copy the selection |
+| `Ctrl+A` | Select all (copying then takes the text of every page) |
+| `Ctrl+Down` / `Ctrl+Up` | Next / previous page |
+| Middle click | Autoscroll: move the pointer away from the mark to scroll, faster further away; click or press a key to stop (or hold the middle button, drag, and let go) |
+| `Ctrl+=` `Ctrl+-` `Ctrl+0`, `Ctrl`+wheel | Zoom in, out, back to the window's width |
+| `Ctrl+P` | Print every page |
+| Right click | All of the above as a menu |
+
+The toolbar at the bottom right shows the page (type a number and `Enter` to go there) and the zoom.
 
 ### LaTeX
 
